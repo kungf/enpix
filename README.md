@@ -125,18 +125,37 @@ dart run build_runner build
 flutter run -d ios
 ```
 
-### Development Phases
+## Roadmap
 
-| Phase | Scope | Status |
-|---|---|---|
-| 1. Foundation | Project scaffold, DB, crypto, S3 client | ✅ In Progress |
-| 2. Local Gallery | Thumbnail grid, full-screen viewer | ⏳ Planned |
-| 3. Archive Pipeline | TTL engine, transfer queue, auto-archive | ⏳ Planned |
-| 4. Cloud Gallery | Cloud browse, on-demand download | ⏳ Planned |
-| 5. Advanced TTL | Size-based trigger, cache, stats | ⏳ Planned |
-| 6. Security | Biometric, cert pinning, hardening | ⏳ Planned |
-| 7. Android | Android-specific adaptations | ⏳ Planned |
-| 8. Desktop | macOS/Windows/Linux support | ⏳ Planned |
+### v0.1 — Self-Hosted Storage (Current)
+
+For technical users who bring their own S3-compatible storage.
+
+- [ ] Project scaffold, database, encryption, S3 client
+- [ ] Local photo thumbnail grid + full-screen viewer
+- [ ] TTL auto-archive engine + transfer queue
+- [ ] Cloud browse + on-demand download
+- [ ] Biometric authentication + security hardening
+- [ ] Publish to App Store / Google Play
+
+### v0.2 — Managed Cloud Storage
+
+For everyday users — works out of the box, no S3 setup required. See [design doc](docs/design-cloud-storage.md).
+
+- [ ] User registration / login (email + Apple/Google Sign-In)
+- [ ] Auto-provisioned cloud storage, client-side encrypted upload
+- [ ] Dual-mode switch: Enpix Cloud / Custom S3
+- [ ] 5 GB free tier + usage dashboard
+- [ ] Backend API service (auth + file operations)
+
+### v1.0 — Monetization + Multi-Platform
+
+- [ ] In-app subscriptions (iOS StoreKit / Google Play Billing)
+- [ ] Multi-device sync
+- [ ] Device management + remote sign-out
+- [ ] Encrypted share links
+- [ ] Trash bin (30-day retention)
+- [ ] Desktop support (macOS / Windows / Linux)
 
 ## License
 
