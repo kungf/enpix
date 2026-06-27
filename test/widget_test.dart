@@ -7,6 +7,6 @@ void main() {
 
     // The main screen has a bottom nav with "本地" tab.
     expect(find.text('本地'), findsWidgets);
-    expect(find.text('See-Photo'), findsOneWidget);
+    expect(find.text('Enpix'), findsOneWidget);
   });
 }

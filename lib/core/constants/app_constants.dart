@@ -1,6 +1,6 @@
 class AppConstants {
   AppConstants._();
-  static const String appName = 'See-Photo';
+  static const String appName = 'Enpix';
   static const String appVersion = '0.1.0';
   static const int defaultTimeTtlDays = 30;
   static const double defaultSizeThresholdGb = 100.0;

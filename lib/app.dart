@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'presentation/screens/settings/settings_screen.dart';
 import 'presentation/screens/local_gallery/local_gallery_screen.dart';
 
-/// Root widget of the See-Photo app.
+/// Root widget of the Enpix app.
 class SeePhotoApp extends StatelessWidget {
   final bool isFirstRun;
 
@@ -13,7 +13,7 @@ class SeePhotoApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'See-Photo',
+      title: 'Enpix',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
@@ -86,7 +86,7 @@ class _TabScreen extends StatelessWidget {
             Text(title, style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 8),
             Text(
-              'See-Photo v0.1.0',
+              'Enpix v0.1.0',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
@@ -117,7 +117,7 @@ class SetupScreen extends StatelessWidget {
             children: [
               Icon(Icons.security_rounded, size: 80, color: theme.colorScheme.primary),
               const SizedBox(height: 32),
-              Text('欢迎使用 See-Photo', style: theme.textTheme.headlineSmall),
+              Text('欢迎使用 Enpix', style: theme.textTheme.headlineSmall),
               const SizedBox(height: 12),
               Text('端到端加密照片备份', style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
               const SizedBox(height: 48),

@@ -58,7 +58,7 @@ void main() {
     test('encrypt then decrypt returns original data', () async {
       final dek = crypto.generateDek();
       final nonce = crypto.generateNonce();
-      final plaintext = Uint8List.fromList(utf8.encode('Hello, See-Photo! 这是一段测试数据。'));
+      final plaintext = Uint8List.fromList(utf8.encode('Hello, Enpix! 这是一段测试数据。'));
 
       final encrypted = await crypto.encrypt(plaintext, dek, nonce);
       final decrypted = await crypto.decrypt(encrypted, dek);

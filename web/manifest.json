@@ -1,6 +1,6 @@
 {
-    "name": "see_photo",
-    "short_name": "see_photo",
+    "name": "Enpix",
+    "short_name": "Enpix",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

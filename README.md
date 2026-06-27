@@ -1,4 +1,4 @@
-# See-Photo
+# Enpix
 
 Cross-platform photo archiving app with end-to-end encryption and S3-compatible backend.
 

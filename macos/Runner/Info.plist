@@ -29,6 +29,6 @@
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>See-Photo 需要访问照片库以浏览和备份你的照片</string>
+	<string>Enpix 需要访问照片库以浏览和备份你的照片</string>
 </dict>
 </plist>

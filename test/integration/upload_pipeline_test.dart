@@ -90,7 +90,7 @@ void main() async {
   final salt = Uint8List(16);
   for (int i = 0; i < 16; i++) salt[i] = i + 1;
   final kek = await deriveKek('pipeline-test-pass', salt);
-  final plaintext = Uint8List.fromList(utf8.encode('See-Photo Pipeline: ${DateTime.now().toIso8601String()}'));
+  final plaintext = Uint8List.fromList(utf8.encode('Enpix Pipeline: ${DateTime.now().toIso8601String()}'));
 
   // T1: Crypto roundtrip
   print('T1: Crypto Roundtrip');

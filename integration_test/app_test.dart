@@ -131,7 +131,7 @@ void main() {
       final kekBytes = Uint8List.fromList(await kek.extractBytes());
 
       // Encrypt test payload
-      final plaintext = Uint8List.fromList(utf8.encode('See-Photo E2E Upload Test: ${DateTime.now().toIso8601String()}'));
+      final plaintext = Uint8List.fromList(utf8.encode('Enpix E2E Upload Test: ${DateTime.now().toIso8601String()}'));
       final dek = rnd(32), nonce = rnd(24);
       final box = await aead.encrypt(plaintext, secretKey: SecretKey(dek), nonce: nonce);
       final encrypted = Uint8List(nonce.length + box.cipherText.length + box.mac.bytes.length);

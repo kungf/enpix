@@ -12,7 +12,7 @@ import 'package:cryptography/cryptography.dart' hide Hmac;
 import 'package:dio/dio.dart';
 
 void main() async {
-  print('═══ See-Photo E2E Pipeline Test ═══\n');
+  print('═══ Enpix E2E Pipeline Test ═══\n');
 
   var passed = 0, failed = 0;
   void ok(String msg) { passed++; print('  ✅ $msg'); }
@@ -148,7 +148,7 @@ void main() async {
 
   // ══════ Test 2: Crypto Roundtrip ══════
   print('\nTest 2: Crypto Roundtrip');
-  final plaintext = Uint8List.fromList(utf8.encode('See-Photo E2E ${DateTime.now().toIso8601String()}'));
+  final plaintext = Uint8List.fromList(utf8.encode('Enpix E2E ${DateTime.now().toIso8601String()}'));
   try {
     final salt = rand(16);
     final kek = await deriveKek('e2e-pass', salt);

@@ -291,7 +291,7 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen> {
           const SizedBox(height: 16),
           const Text('需要照片访问权限', style: TextStyle(fontSize: 18)),
           const SizedBox(height: 8),
-          const Text('请在设置中允许 See-Photo 访问照片', style: TextStyle(color: Colors.grey)),
+          const Text('请在设置中允许 Enpix 访问照片', style: TextStyle(color: Colors.grey)),
           const SizedBox(height: 24),
           FilledButton(onPressed: _requestPermission, child: const Text('授权')),
         ],
