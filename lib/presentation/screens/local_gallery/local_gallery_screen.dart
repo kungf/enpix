@@ -235,7 +235,7 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen> {
       );
 
       if (result.success) {
-        await ref.read(uploadTrackerProvider).markUploaded(assetId: asset.id, s3Key: result.s3Key!, fileName: asset.title ?? 'photo', contentHash: result.fileHash);
+        await ref.read(uploadTrackerProvider).markUploaded(asset.id);
         _uploadedIds.add(asset.id);
         uploaded++;
       } else {
