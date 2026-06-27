@@ -81,9 +81,8 @@ class CryptoService {
   }
 
   Uint8List _random(int len) {
-    final bytes = Uint8List(len);
-    Random.secure().nextBytes(bytes);
-    return bytes;
+    final rng = Random.secure();
+    return Uint8List.fromList(List.generate(len, (_) => rng.nextInt(256)));
   }
 
   Uint8List _concat(Uint8List a, List<int> b, List<int> c) {

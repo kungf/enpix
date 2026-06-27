@@ -82,7 +82,10 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('设置'));
       await tester.pumpAndSettle();
-      expect(find.text('wytest'), findsOneWidget);
+      // S3 fields exist (empty on fresh install, pre-filled on devices with saved config)
+      expect(find.text('Endpoint URL'), findsOneWidget);
+      expect(find.text('Bucket'), findsOneWidget);
+      expect(find.text('Region'), findsOneWidget);
     });
   });
 
