@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/errors/storage_exception.dart';
 import '../../../services/crypto/credential_service.dart';
 import '../../../services/providers.dart';
+import '../../../services/ttl/ttl_config.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -41,14 +42,37 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _loadState() async {
     final hp = await _credService.hasPassphrase();
     final hc = await _credService.hasS3Credentials();
-    // Load saved S3 connection details into text fields.
     final ep = await _credService.getS3Endpoint();
     final bk = await _credService.getS3Bucket();
     final rg = await _credService.getS3Region();
     if (ep != null) _endpointCtrl.text = ep;
     if (bk != null) _bucketCtrl.text = bk;
     if (rg != null) _regionCtrl.text = rg;
-    if (mounted) setState(() { _hasPassphrase = hp; _sessionActive = _credService.isSessionActive; _hasS3Creds = hc; });
+
+    // Load persisted TTL config.
+    final ttl = ref.read(ttlEngineProvider);
+    await ttl.ensureLoaded();
+    final cfg = ttl.config;
+
+    if (mounted) setState(() {
+      _hasPassphrase = hp;
+      _sessionActive = _credService.isSessionActive;
+      _hasS3Creds = hc;
+      _ttlTimeEnabled = cfg.timeEnabled;
+      _ttlTimeDays = cfg.timeDays.toDouble();
+      _ttlSizeEnabled = cfg.sizeEnabled;
+      _ttlSizeGb = cfg.sizeGb.toDouble();
+    });
+  }
+
+  Future<void> _saveTtlConfig() async {
+    final cfg = TtlConfig(
+      timeEnabled: _ttlTimeEnabled,
+      timeDays: _ttlTimeDays.toInt(),
+      sizeEnabled: _ttlSizeEnabled,
+      sizeGb: _ttlSizeGb.toInt(),
+    );
+    await ref.read(ttlEngineProvider).updateConfig(cfg);
   }
 
   @override
@@ -75,11 +99,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           SwitchListTile(title: const Text('仅 WiFi 上传'), value: _wifiOnly, onChanged: (v) => setState(() => _wifiOnly = v)),
         ]),
         _card(Icons.auto_delete_rounded, '本地清理 (TTL)', '已上传到 S3 的本地文件，满足条件后自动删除', [
-          SwitchListTile(title: const Text('按时间清理'), subtitle: Text(_ttlTimeEnabled ? '删除 ${_ttlTimeDays.toInt()} 天前且已上传的本地文件' : '已禁用'), value: _ttlTimeEnabled, onChanged: (v) => setState(() => _ttlTimeEnabled = v)),
-          if (_ttlTimeEnabled) Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Row(children: [Text('${_ttlTimeDays.toInt()} 天前', style: t.textTheme.bodySmall), Expanded(child: Slider(value: _ttlTimeDays, min: 1, max: 365, divisions: 50, onChanged: (v) => setState(() => _ttlTimeDays = v))), SizedBox(width: 50, child: Text('${_ttlTimeDays.toInt()}天', style: t.textTheme.bodySmall))])),
+          SwitchListTile(title: const Text('按时间清理'), subtitle: Text(_ttlTimeEnabled ? '删除 ${_ttlTimeDays.toInt()} 天前且已上传的本地文件' : '已禁用'), value: _ttlTimeEnabled, onChanged: (v) { setState(() => _ttlTimeEnabled = v); _saveTtlConfig(); }),
+          if (_ttlTimeEnabled) Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Row(children: [Text('${_ttlTimeDays.toInt()} 天前', style: t.textTheme.bodySmall), Expanded(child: Slider(value: _ttlTimeDays, min: 1, max: 365, divisions: 50, onChanged: (v) => setState(() => _ttlTimeDays = v), onChangeEnd: (_) => _saveTtlConfig())), SizedBox(width: 50, child: Text('${_ttlTimeDays.toInt()}天', style: t.textTheme.bodySmall))])),
           const Divider(),
-          SwitchListTile(title: const Text('按空间清理'), subtitle: Text(_ttlSizeEnabled ? '本地空间超过 ${_ttlSizeGb.toInt()} GB 时，清理旧文件（每次 1 GiB）' : '已禁用'), value: _ttlSizeEnabled, onChanged: (v) => setState(() => _ttlSizeEnabled = v)),
-          if (_ttlSizeEnabled) Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Row(children: [const Text('上限: '), Expanded(child: Slider(value: _ttlSizeGb, min: 5, max: 500, divisions: 99, onChanged: (v) => setState(() => _ttlSizeGb = v))), SizedBox(width: 50, child: Text('${_ttlSizeGb.toInt()}GB', style: t.textTheme.bodySmall))])),
+          SwitchListTile(title: const Text('按空间清理'), subtitle: Text(_ttlSizeEnabled ? '本地空间超过 ${_ttlSizeGb.toInt()} GB 时，清理旧文件（每次 1 GiB）' : '已禁用'), value: _ttlSizeEnabled, onChanged: (v) { setState(() => _ttlSizeEnabled = v); _saveTtlConfig(); }),
+          if (_ttlSizeEnabled) Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Row(children: [const Text('上限: '), Expanded(child: Slider(value: _ttlSizeGb, min: 5, max: 500, divisions: 99, onChanged: (v) => setState(() => _ttlSizeGb = v), onChangeEnd: (_) => _saveTtlConfig())), SizedBox(width: 50, child: Text('${_ttlSizeGb.toInt()}GB', style: t.textTheme.bodySmall))])),
         ]),
         _card(Icons.cloud_outlined, 'S3 存储配置', null, [
           _tf('Endpoint URL', _endpointCtrl), const SizedBox(height: 12),

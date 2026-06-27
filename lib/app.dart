@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_theme.dart';
 import 'package:flutter/foundation.dart';
+import 'package:logging/logging.dart';
 import 'presentation/screens/settings/settings_screen.dart';
 import 'presentation/screens/local_gallery/local_gallery_screen.dart';
 import 'presentation/screens/cloud_gallery/cloud_gallery_screen.dart';
+import 'services/providers.dart';
 
 /// Root widget of the Enpix app.
 class SeePhotoApp extends StatelessWidget {
@@ -29,15 +32,34 @@ class SeePhotoApp extends StatelessWidget {
 }
 
 /// Main 3-tab screen.
-class MainScreen extends StatefulWidget {
+class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key});
 
   @override
-  State<MainScreen> createState() => _MainScreenState();
+  ConsumerState<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends ConsumerState<MainScreen> {
+  final _log = Logger('MainScreen');
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Run TTL cleanup after the first frame renders.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _runTtl());
+  }
+
+  Future<void> _runTtl() async {
+    try {
+      final deleted = await ref.read(ttlEngineProvider).run();
+      if (deleted > 0) {
+        _log.info('TTL cleaned up $deleted photos');
+      }
+    } catch (e) {
+      _log.warning('TTL engine error: $e');
+    }
+  }
 
   List<Widget> get _screens {
     // photo_manager only works on iOS/Android, fall back to placeholder on macOS

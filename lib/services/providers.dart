@@ -5,6 +5,7 @@ import 'crypto/credential_service.dart';
 import 'storage/s3_service.dart';
 import 'upload/upload_tracker.dart';
 import 'cache/thumbnail_cache.dart';
+import 'ttl/ttl_engine.dart';
 
 /// Shared singleton services — created once, shared across all screens.
 /// This ensures the CredentialService session set in SettingsScreen is
@@ -21,3 +22,7 @@ final s3ServiceProvider = Provider<S3Service>((ref) => S3Service());
 final uploadTrackerProvider = Provider<UploadTracker>((ref) => UploadTracker());
 
 final thumbnailCacheProvider = Provider<ThumbnailCache>((ref) => ThumbnailCache());
+
+final ttlEngineProvider = Provider<TtlEngine>((ref) {
+  return TtlEngine(ref.watch(uploadTrackerProvider));
+});
