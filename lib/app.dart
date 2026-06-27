@@ -46,11 +46,18 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   @override
   void initState() {
     super.initState();
-    // Run TTL cleanup after the first frame renders.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _runTtl());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _init());
   }
 
-  Future<void> _runTtl() async {
+  Future<void> _init() async {
+    // Auto-unlock KEK session from saved passphrase.
+    final credService = ref.read(credentialServiceProvider);
+    final unlocked = await credService.autoUnlock();
+    if (unlocked) {
+      _log.info('KEK session auto-unlocked');
+    }
+
+    // Run TTL cleanup after unlock.
     try {
       final deleted = await ref.read(ttlEngineProvider).run();
       if (deleted > 0) {

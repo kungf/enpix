@@ -28,6 +28,7 @@ class CredentialService {
   static const _kekSaltKey = 'kek_salt_v1';
   static const _kekFingerprintKey = 'kek_fingerprint_v1';
   static const _hasPassphraseKey = 'has_passphrase';
+  static const _savedPassphraseKey = 'saved_passphrase';
   static const _s3EndpointKey = 's3_endpoint';
   static const _s3BucketKey = 's3_bucket';
   static const _s3RegionKey = 's3_region';
@@ -125,7 +126,28 @@ class CredentialService {
 
     // Start session
     startSession(kek);
+
+    // Save passphrase for auto-unlock on next app start
+    await _storage.write(key: _savedPassphraseKey, value: passphrase);
+
     return kek;
+  }
+
+  /// Try to auto-unlock using the saved passphrase from Keychain.
+  /// Returns true if unlock succeeded, false if no saved passphrase or unlock failed.
+  Future<bool> autoUnlock() async {
+    if (isSessionActive) return true;
+    try {
+      final passphrase = await _storage.read(key: _savedPassphraseKey);
+      if (passphrase == null) return false;
+      await unlockWithPassphrase(passphrase);
+      return true;
+    } catch (e) {
+      _log.warning('Auto-unlock failed: $e');
+      // Clear invalid saved passphrase
+      await _storage.delete(key: _savedPassphraseKey);
+      return false;
+    }
   }
 
   /// Verify the passphrase without starting a session.
@@ -272,6 +294,7 @@ class CredentialService {
     await _storage.delete(key: _kekSaltKey);
     await _storage.delete(key: _kekFingerprintKey);
     await _storage.delete(key: _hasPassphraseKey);
+    await _storage.delete(key: _savedPassphraseKey);
     _log.warning('All credentials and keys deleted');
   }
 }
