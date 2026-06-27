@@ -1,0 +1,52 @@
+{
+  "providers": [
+    {
+      "id": "aws",
+      "name": "Amazon S3",
+      "endpoint_url": "https://s3.amazonaws.com",
+      "region": "us-east-1",
+      "use_path_style": false,
+      "description": "Amazon S3 cloud storage"
+    },
+    {
+      "id": "cloudflare",
+      "name": "Cloudflare R2",
+      "endpoint_url": "https://{account_id}.r2.cloudflarestorage.com",
+      "region": "auto",
+      "use_path_style": false,
+      "description": "Cloudflare R2 — no egress fees"
+    },
+    {
+      "id": "backblaze",
+      "name": "Backblaze B2",
+      "endpoint_url": "https://s3.us-west-004.backblazeb2.com",
+      "region": "us-west-004",
+      "use_path_style": true,
+      "description": "Backblaze B2 — S3-compatible API"
+    },
+    {
+      "id": "digitalocean",
+      "name": "DigitalOcean Spaces",
+      "endpoint_url": "https://{region}.digitaloceanspaces.com",
+      "region": "nyc3",
+      "use_path_style": false,
+      "description": "DigitalOcean Spaces object storage"
+    },
+    {
+      "id": "minio",
+      "name": "MinIO (Self-Hosted)",
+      "endpoint_url": "http://localhost:9000",
+      "region": "us-east-1",
+      "use_path_style": true,
+      "description": "Self-hosted MinIO server"
+    },
+    {
+      "id": "wasabi",
+      "name": "Wasabi",
+      "endpoint_url": "https://s3.wasabisys.com",
+      "region": "us-east-1",
+      "use_path_style": false,
+      "description": "Wasabi hot cloud storage"
+    }
+  ]
+}

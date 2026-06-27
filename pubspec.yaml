@@ -1,0 +1,71 @@
+name: see_photo
+description: Cross-platform photo archiving app with end-to-end encryption and S3 backend.
+version: 0.1.0+1
+publish_to: none
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management
+  flutter_riverpod: ^2.6.0
+
+  # Database
+  drift: ^2.15.0
+  sqlite3: ^2.4.0
+  sqlite3_flutter_libs: ^0.5.0
+  path_provider: ^2.1.0
+  path: ^1.9.0
+
+  # Cryptography — pure Dart
+  cryptography: ^2.7.0
+
+  # HTTP / S3 client
+  dio: ^5.4.0
+
+  # Networking
+  connectivity_plus: ^6.1.0
+
+  # Background processing
+  workmanager: ^0.5.2
+  flutter_background_service: ^5.0.0
+
+  # Photo access
+  photo_manager: ^3.4.0
+
+  # Image
+  image: ^4.3.0
+
+  # Secure storage
+  flutter_secure_storage: ^9.2.0
+  local_auth: ^2.3.0
+
+  # UI
+  photo_view: ^0.15.0
+  fl_chart: ^0.70.0
+  file_picker: ^8.1.0
+
+  # Utilities
+  uuid: ^4.5.0
+  collection: ^1.19.0
+  logging: ^1.2.0
+  mime: ^2.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  drift_dev: ^2.15.0
+  build_runner: ^2.4.0
+  mocktail: ^1.0.0
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/presets/
