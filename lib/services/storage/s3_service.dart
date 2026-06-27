@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:logging/logging.dart';
+import 'package:xml/xml.dart';
 import '../../core/errors/storage_exception.dart';
 import '../../domain/entities/storage_config.dart';
 
@@ -33,6 +34,16 @@ class S3Service {
 
   String makeKey(String fileId, DateTime createdAt) {
     return generateKey(_kekFingerprint ?? 'shared', fileId, createdAt);
+  }
+
+  /// Generate S3 key for a thumbnail.
+  static String generateThumbKey(String fingerprint, String fileId) {
+    final prefix = fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared';
+    return '$prefix/thumbs/$fileId\_thumb.enc';
+  }
+
+  String makeThumbKey(String fileId) {
+    return generateThumbKey(_kekFingerprint ?? 'shared', fileId);
   }
 
   // ── HTTP operations ──
@@ -102,6 +113,53 @@ class S3Service {
     } catch (e) {
       throw StorageException(message: 'DELETE failed: $key — $e', cause: e);
     }
+  }
+
+  /// List objects under [prefix]. Returns all matching objects (paginated internally).
+  Future<List<S3Object>> listObjects(String prefix) async {
+    _ensureConfigured();
+    final results = <S3Object>[];
+    String? continuationToken;
+
+    do {
+      final queryParts = <String>[
+        'list-type=2',
+        'prefix=$prefix',
+        'max-keys=1000',
+      ];
+      if (continuationToken != null) {
+        queryParts.add('continuation-token=${Uri.encodeComponent(continuationToken)}');
+      }
+      final query = queryParts.join('&');
+      final path = '/${_config!.bucketName}?$query';
+
+      try {
+        final r = await _dio.get(path, options: _signedOptions('GET', '/${_config!.bucketName}'));
+        final body = r.data is String ? r.data as String : r.data.toString();
+        final doc = XmlDocument.parse(body);
+
+        final listBucketResult = doc.getElement('ListBucketResult');
+        if (listBucketResult == null) break;
+
+        final isTruncated = listBucketResult.getElement('IsTruncated')?.innerText == 'true';
+        continuationToken = isTruncated
+            ? listBucketResult.getElement('NextContinuationToken')?.innerText
+            : null;
+
+        for (final contents in listBucketResult.findAllElements('Contents')) {
+          final key = contents.getElement('Key')?.innerText ?? '';
+          final size = int.tryParse(contents.getElement('Size')?.innerText ?? '0') ?? 0;
+          final lastModified = contents.getElement('LastModified')?.innerText ?? '';
+          if (key.endsWith('/')) continue; // skip folder markers
+          results.add(S3Object(key: key, size: size, lastModified: lastModified));
+        }
+      } catch (e) {
+        throw StorageException(message: 'LIST failed: prefix=$prefix — $e', cause: e);
+      }
+    } while (continuationToken != null);
+
+    _log.info('LISTED ${results.length} objects under $prefix');
+    return results;
   }
 
   // ── AWS Signature V4 ──
@@ -178,4 +236,13 @@ class S3Service {
   void _ensureConfigured() {
     if (_config == null) throw StorageNotConfiguredException();
   }
+}
+
+/// Minimal representation of an S3 object from ListObjects.
+class S3Object {
+  final String key;
+  final int size;
+  final String lastModified;
+
+  const S3Object({required this.key, required this.size, required this.lastModified});
 }

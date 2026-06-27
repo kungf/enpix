@@ -3,6 +3,7 @@ import 'core/theme/app_theme.dart';
 import 'package:flutter/foundation.dart';
 import 'presentation/screens/settings/settings_screen.dart';
 import 'presentation/screens/local_gallery/local_gallery_screen.dart';
+import 'presentation/screens/cloud_gallery/cloud_gallery_screen.dart';
 
 /// Root widget of the Enpix app.
 class SeePhotoApp extends StatelessWidget {
@@ -43,7 +44,7 @@ class _MainScreenState extends State<MainScreen> {
     final bool supportsPhotos = !kIsWeb && (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.android);
     return <Widget>[
       supportsPhotos ? const LocalGalleryScreen() : const _TabScreen(title: '本地', icon: Icons.photo_library_rounded, color: Colors.blue),
-      const _TabScreen(title: '云端', icon: Icons.cloud_rounded, color: Colors.green),
+      const CloudGalleryScreen(),
       const SettingsScreen(),
     ];
   }

@@ -4,6 +4,7 @@ import 'crypto/crypto_service.dart';
 import 'crypto/credential_service.dart';
 import 'storage/s3_service.dart';
 import 'upload/upload_tracker.dart';
+import 'cache/thumbnail_cache.dart';
 
 /// Shared singleton services — created once, shared across all screens.
 /// This ensures the CredentialService session set in SettingsScreen is
@@ -18,3 +19,5 @@ final credentialServiceProvider = Provider<CredentialService>((ref) {
 final s3ServiceProvider = Provider<S3Service>((ref) => S3Service());
 
 final uploadTrackerProvider = Provider<UploadTracker>((ref) => UploadTracker());
+
+final thumbnailCacheProvider = Provider<ThumbnailCache>((ref) => ThumbnailCache());

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:cryptography/cryptography.dart' hide Hmac;
@@ -8,12 +9,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:see_photo/main.dart' as app;
 
-// ── S3 Helpers ──
-const _endpoint = 'http://192.168.18.186:6669';
-const _bucket = 'wytest';
-const _ak = 'minioadmin';
-const _sk = 'minioadmin';
-const _region = 'us-east-1';
+// ── S3 Helpers (from environment variables) ──
+final _endpoint = Platform.environment['S3_ENDPOINT'] ?? 'http://localhost:9000';
+final _bucket = Platform.environment['S3_BUCKET'] ?? 'test';
+final _ak = Platform.environment['S3_ACCESS_KEY'] ?? '';
+final _sk = Platform.environment['S3_SECRET_KEY'] ?? '';
+final _region = Platform.environment['S3_REGION'] ?? 'us-east-1';
 
 String p2(int n) => n.toString().padLeft(2, '0');
 Map<String, String> _auth(String method, String path, {Map<String, String>? extra, String? ph}) {

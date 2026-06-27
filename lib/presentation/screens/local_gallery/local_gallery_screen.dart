@@ -7,6 +7,7 @@ import '../../../services/crypto/credential_service.dart';
 import '../../../services/upload/upload_service.dart';
 import '../../../services/storage/s3_service.dart';
 import '../../../services/providers.dart';
+import '../../../services/cache/thumbnail_cache.dart';
 import '../../../domain/entities/storage_config.dart';
 
 /// Local photo browser — shows device photos grouped by day, like the Photos app.
@@ -236,6 +237,10 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen> {
 
       if (result.success) {
         await ref.read(uploadTrackerProvider).markUploaded(asset.id);
+        // Cache thumbnail locally for cloud gallery browsing
+        if (result.thumbData != null) {
+          await ref.read(thumbnailCacheProvider).save(asset.id, result.thumbData!);
+        }
         _uploadedIds.add(asset.id);
         uploaded++;
       } else {
