@@ -13,7 +13,7 @@
 migrate_working_dir/
 
 # Environment / secrets
-.env.test
+test/env.test
 
 # IntelliJ related
 *.iml

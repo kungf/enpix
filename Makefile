@@ -3,7 +3,7 @@
 DEVICE ?= 6D0EA366-A494-46D2-89C1-58D8A7D5AEE5
 
 # Load test environment variables
-ENV = set -a && . ./.env.test && set +a
+ENV = set -a && . ./test/env.test && set +a
 
 # CI tests (no device needed)
 test-ci:
