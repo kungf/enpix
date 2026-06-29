@@ -10,7 +10,9 @@ import '../../../domain/entities/storage_config.dart';
 
 /// Cloud photo browser — shows encrypted thumbnails from S3, grouped by day.
 class CloudGalleryScreen extends ConsumerStatefulWidget {
-  const CloudGalleryScreen({super.key});
+  final VoidCallback? onNavigateToSettings;
+
+  const CloudGalleryScreen({super.key, this.onNavigateToSettings});
 
   @override
   ConsumerState<CloudGalleryScreen> createState() => _CloudGalleryScreenState();
@@ -19,6 +21,7 @@ class CloudGalleryScreen extends ConsumerStatefulWidget {
 class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
   bool _loading = false;
   bool _error = false;
+  bool _needPassphrase = false;
   String _errorMsg = '';
   List<_CloudDaySection> _sections = [];
   String? _prefix;
@@ -45,7 +48,7 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
           setState(() {
             _loading = false;
             _error = true;
-            _errorMsg = '请先在设置中解锁密钥';
+            _needPassphrase = true;
           });
           return;
         }
@@ -209,7 +212,7 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
       if (!credService.isSessionActive) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('请先在设置中解锁密钥')),
+            const SnackBar(content: Text('请先在设置中创建加密密码')),
           );
         }
         return;
@@ -283,13 +286,33 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.cloud_off_rounded, size: 48, color: Colors.grey),
+              Icon(
+                _needPassphrase ? Icons.lock_outline_rounded : Icons.cloud_off_rounded,
+                size: 48,
+                color: _needPassphrase ? Colors.orange : Colors.grey,
+              ),
               const SizedBox(height: 16),
-              const Text('无法加载云端照片', style: TextStyle(fontSize: 16)),
+              Text(
+                _needPassphrase ? '需要设置加密密钥' : '无法加载云端照片',
+                style: const TextStyle(fontSize: 16),
+              ),
               const SizedBox(height: 8),
-              Text(_errorMsg, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              Text(
+                _needPassphrase
+                    ? 'Enpix 使用端到端加密保护你的照片\n请前往 设置 → 安全 中创建加密密码'
+                    : _errorMsg,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
+              ),
               const SizedBox(height: 24),
-              FilledButton(onPressed: _loadCloudThumbs, child: const Text('重试')),
+              if (_needPassphrase)
+                FilledButton.icon(
+                  onPressed: widget.onNavigateToSettings,
+                  icon: const Icon(Icons.settings_rounded, size: 18),
+                  label: const Text('前往设置'),
+                )
+              else
+                FilledButton(onPressed: _loadCloudThumbs, child: const Text('重试')),
             ],
           ),
         ),

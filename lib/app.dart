@@ -69,11 +69,10 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   }
 
   List<Widget> get _screens {
-    // photo_manager only works on iOS/Android, fall back to placeholder on macOS
     final bool supportsPhotos = !kIsWeb && (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.android);
     return <Widget>[
       supportsPhotos ? const LocalGalleryScreen() : const _TabScreen(title: '本地', icon: Icons.photo_library_rounded, color: Colors.blue),
-      const CloudGalleryScreen(),
+      CloudGalleryScreen(onNavigateToSettings: () => setState(() => _currentIndex = 2)),
       const SettingsScreen(),
     ];
   }

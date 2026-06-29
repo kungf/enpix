@@ -39,6 +39,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _loadState();
   }
 
+  @override
+  void dispose() {
+    _endpointCtrl.dispose(); _bucketCtrl.dispose(); _regionCtrl.dispose();
+    _accessKeyCtrl.dispose(); _secretKeyCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadState() async {
     final hp = await _credService.hasPassphrase();
     final hc = await _credService.hasS3Credentials();
@@ -76,18 +83,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   @override
-  void dispose() {
-    _endpointCtrl.dispose(); _bucketCtrl.dispose(); _regionCtrl.dispose();
-    _accessKeyCtrl.dispose(); _secretKeyCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('设置'), centerTitle: false),
       body: ListView(padding: const EdgeInsets.symmetric(vertical: 8), children: [
+        _card(Icons.security_rounded, '安全', null, [
+          ListTile(leading: const Icon(Icons.key_rounded), title: const Text('加密算法'), subtitle: const Text('XChaCha20-Poly1305 + Argon2id + BLAKE2b')),
+          ListTile(leading: Icon(Icons.lock_rounded, color: _sessionActive ? Colors.green : Colors.grey), title: Text(_hasPassphrase ? '加密密钥' : '设置加密密码'), subtitle: Text(_sessionActive ? '已解锁' : (_hasPassphrase ? '已锁定' : '用于加密凭证和照片')),
+            trailing: _hasPassphrase ? Row(mainAxisSize: MainAxisSize.min, children: [FilledButton.tonal(onPressed: () => _unlock(context), child: const Text('解锁')), const SizedBox(width: 8), IconButton(icon: const Icon(Icons.delete_outline_rounded, size: 18), onPressed: _resetPw, tooltip: '重置')]) : FilledButton.tonal(onPressed: () => _setupPw(context), child: const Text('设置密码'))),
+          ListTile(leading: Icon(Icons.vpn_key_rounded, color: _hasS3Creds ? Colors.green : Colors.grey), title: const Text('S3 凭证'), subtitle: Text(_hasS3Creds ? '已加密存储' : '保存时自动用密码加密')),
+        ]),
         _card(Icons.cloud_upload_rounded, '上传配置', '仅上传拍摄时间超过阈值的照片，0 为不限', [
           SwitchListTile(title: const Text('上传阈值'), subtitle: Text(_uploadEnabled ? (_uploadDelayDays == 0 ? '不限' : '仅上传 ${_uploadDelayDays.toInt()} ${_uploadUnitHours ? "小时" : "天"}前拍摄的照片') : '已禁用'), value: _uploadEnabled, onChanged: (v) => setState(() => _uploadEnabled = v)),
           if (_uploadEnabled) Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Column(children: [
@@ -116,12 +122,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             const Spacer(), FilledButton.icon(onPressed: _saveS3Config, icon: const Icon(Icons.save_rounded, size: 18), label: const Text('保存')),
           ]),
         ]),
-        _card(Icons.security_rounded, '安全', null, [
-          ListTile(leading: const Icon(Icons.key_rounded), title: const Text('加密算法'), subtitle: const Text('XChaCha20-Poly1305 + Argon2id + BLAKE2b')),
-          ListTile(leading: Icon(Icons.lock_rounded, color: _sessionActive ? Colors.green : Colors.grey), title: Text(_hasPassphrase ? '加密密钥' : '设置加密密码'), subtitle: Text(_sessionActive ? '已解锁' : (_hasPassphrase ? '已锁定' : '用于加密凭证和照片')),
-            trailing: _hasPassphrase ? Row(mainAxisSize: MainAxisSize.min, children: [FilledButton.tonal(onPressed: () => _unlock(context), child: const Text('解锁')), const SizedBox(width: 8), IconButton(icon: const Icon(Icons.delete_outline_rounded, size: 18), onPressed: _resetPw, tooltip: '重置')]) : FilledButton.tonal(onPressed: () => _setupPw(context), child: const Text('设置密码'))),
-          ListTile(leading: Icon(Icons.vpn_key_rounded, color: _hasS3Creds ? Colors.green : Colors.grey), title: const Text('S3 凭证'), subtitle: Text(_hasS3Creds ? '已加密存储' : '保存时自动用密码加密')),
-        ]),
         _card(Icons.info_outline_rounded, '关于', null, [
           if (_hasPassphrase) FutureBuilder<String?>(future: _credService.getKekFingerprint(), builder: (_, s) => _row('KEK 指纹', s.data?.substring(0, 12) ?? '—', mono: true)),
           _row('版本', '0.1.0'), _row('加密', 'XChaCha20-Poly1305'), _row('密钥派生', 'Argon2id (64 MiB)'), _row('哈希', 'BLAKE2b-256'),
@@ -134,8 +134,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void _setupPw(BuildContext ctx) {
     final passwordCtrl = TextEditingController(), confirmCtrl = TextEditingController();
     var strength = _Strength.none;
-    showDialog(context: ctx, builder: (dialogContext) => StatefulBuilder(builder: (dialogContext, dialogSetState) => AlertDialog(title: const Text('设置加密密码'), content: Column(mainAxisSize: MainAxisSize.min, children: [
-      const Text('最短 8 位，用于加密凭证和照片。丢失后无法恢复。'), const SizedBox(height: 16),
+    showDialog(context: ctx, builder: (dialogContext) => StatefulBuilder(builder: (dialogContext, dialogSetState) => AlertDialog(title: const Text('设置加密密码'), content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.orange.withAlpha(20),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.orange.withAlpha(60)),
+        ),
+        child: const Row(children: [
+          Icon(Icons.shield_rounded, size: 20, color: Colors.orange),
+          SizedBox(width: 8),
+          Expanded(child: Text('端到端加密', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.orange))),
+        ]),
+      ),
+      const SizedBox(height: 12),
+      const Text('你的照片会在上传前加密，服务器无法查看内容。此密码用于加密和解密你的照片及凭证。', style: TextStyle(fontSize: 13)),
+      const SizedBox(height: 8),
+      const Text('⚠️ 请牢记此密码。忘记密码将无法解密照片，且无法恢复。', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.red)),
+      const SizedBox(height: 16),
       TextField(controller: passwordCtrl, obscureText: true, decoration: const InputDecoration(labelText: '密码', hintText: '建议大小写字母+数字+符号', border: OutlineInputBorder()), onChanged: (_) => dialogSetState(() => strength = _calc(passwordCtrl.text))),
       _bar(strength), const SizedBox(height: 12),
       TextField(controller: confirmCtrl, obscureText: true, decoration: const InputDecoration(labelText: '确认密码', border: OutlineInputBorder())),
