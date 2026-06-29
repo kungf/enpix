@@ -35,6 +35,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _hasS3Creds = false;
   bool? _s3TestResult; // null = not tested, true = ok, false = fail
   bool _s3Testing = false;
+  bool _obscureSk = true;
 
   @override
   void initState() {
@@ -123,8 +124,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _tf('Endpoint URL', _endpointCtrl), const SizedBox(height: 12),
           _tf('Bucket', _bucketCtrl), const SizedBox(height: 12),
           _tf('Region', _regionCtrl), const SizedBox(height: 12),
-          _tf('Access Key', _accessKeyCtrl, obscure: true), const SizedBox(height: 12),
-          _tf('Secret Key', _secretKeyCtrl, obscure: true), const SizedBox(height: 16),
+          _tf('Access Key', _accessKeyCtrl), const SizedBox(height: 12),
+          TextField(controller: _secretKeyCtrl, obscureText: _obscureSk, decoration: InputDecoration(labelText: 'Secret Key', border: const OutlineInputBorder(), suffixIcon: IconButton(icon: Icon(_obscureSk ? Icons.visibility_off_outlined : Icons.visibility_outlined), onPressed: () => setState(() => _obscureSk = !_obscureSk)))), const SizedBox(height: 16),
           Row(children: [
             OutlinedButton.icon(
               onPressed: _s3Testing ? null : _testConnection,
