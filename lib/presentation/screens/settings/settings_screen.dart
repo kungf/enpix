@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/errors/storage_exception.dart';
+import '../../../domain/entities/storage_config.dart';
 import '../../../services/crypto/credential_service.dart';
 import '../../../services/providers.dart';
 import '../../../services/ttl/ttl_config.dart';
@@ -32,6 +33,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _hasPassphrase = false;
   bool _sessionActive = false;
   bool _hasS3Creds = false;
+  bool? _s3TestResult; // null = not tested, true = ok, false = fail
+  bool _s3Testing = false;
 
   @override
   void initState() {
@@ -123,7 +126,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _tf('Access Key', _accessKeyCtrl, obscure: true), const SizedBox(height: 12),
           _tf('Secret Key', _secretKeyCtrl, obscure: true), const SizedBox(height: 16),
           Row(children: [
-            OutlinedButton.icon(onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('测试连接...'))), icon: const Icon(Icons.wifi_find_rounded, size: 18), label: const Text('测试连接')),
+            OutlinedButton.icon(
+              onPressed: _s3Testing ? null : _testConnection,
+              icon: _s3Testing
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Icon(
+                      _s3TestResult == true ? Icons.check_circle_rounded
+                          : _s3TestResult == false ? Icons.error_rounded
+                          : Icons.wifi_find_rounded,
+                      size: 18,
+                      color: _s3TestResult == true ? Colors.green
+                          : _s3TestResult == false ? Colors.red
+                          : null,
+                    ),
+              label: Text(_s3TestResult == true ? '连接成功' : _s3TestResult == false ? '连接失败' : '测试连接'),
+            ),
             const Spacer(), FilledButton.icon(onPressed: _saveS3Config, icon: const Icon(Icons.save_rounded, size: 18), label: const Text('保存')),
           ]),
         ]),
@@ -206,6 +223,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _resetPw() async {
     final ok = await showDialog<bool>(context: context, builder: (dialogContext) => AlertDialog(title: const Text('重置？'), content: const Text('删除所有加密数据，不可撤销。'), actions: [TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('取消')), FilledButton(onPressed: () => Navigator.pop(dialogContext, true), style: FilledButton.styleFrom(backgroundColor: Colors.red), child: const Text('重置'))]));
     if (ok == true) { await _credService.resetAll(); await _loadState(); if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已重置'))); }
+  }
+
+  Future<void> _testConnection() async {
+    final endpoint = _endpointCtrl.text.trim();
+    final bucket = _bucketCtrl.text.trim();
+    final region = _regionCtrl.text.trim();
+    if (endpoint.isEmpty || bucket.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请填写 Endpoint 和 Bucket')));
+      return;
+    }
+    setState(() { _s3Testing = true; _s3TestResult = null; });
+    try {
+      final s3 = ref.read(s3ServiceProvider);
+      s3.configure(StorageConfig(
+        endpointUrl: endpoint,
+        bucketName: bucket,
+        region: region.isNotEmpty ? region : 'us-east-1',
+        accessKey: _accessKeyCtrl.text.trim(),
+        secretKey: _secretKeyCtrl.text.trim(),
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+      ));
+      await s3.listObjects('');
+      if (mounted) setState(() { _s3TestResult = true; _s3Testing = false; });
+    } catch (e) {
+      if (mounted) setState(() { _s3TestResult = false; _s3Testing = false; });
+    }
   }
 
   Future<void> _saveS3Config() async {
