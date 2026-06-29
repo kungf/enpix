@@ -134,6 +134,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void _setupPw(BuildContext ctx) {
     final passwordCtrl = TextEditingController(), confirmCtrl = TextEditingController();
     var strength = _Strength.none;
+    var obscurePw = true;
+    var obscureConfirm = true;
     showDialog(context: ctx, builder: (dialogContext) => StatefulBuilder(builder: (dialogContext, dialogSetState) => AlertDialog(title: const Text('设置加密密码'), content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
       Container(
         padding: const EdgeInsets.all(12),
@@ -153,9 +155,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       const SizedBox(height: 8),
       const Text('⚠️ 请牢记此密码。忘记密码将无法解密照片，且无法恢复。', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.red)),
       const SizedBox(height: 16),
-      TextField(controller: passwordCtrl, obscureText: true, decoration: const InputDecoration(labelText: '密码', hintText: '建议大小写字母+数字+符号', border: OutlineInputBorder()), onChanged: (_) => dialogSetState(() => strength = _calc(passwordCtrl.text))),
+      TextField(controller: passwordCtrl, obscureText: obscurePw, decoration: InputDecoration(labelText: '密码', hintText: '建议大小写字母+数字+符号', border: const OutlineInputBorder(), suffixIcon: IconButton(icon: Icon(obscurePw ? Icons.visibility_off_outlined : Icons.visibility_outlined), onPressed: () => dialogSetState(() => obscurePw = !obscurePw))), onChanged: (_) => dialogSetState(() => strength = _calc(passwordCtrl.text))),
       _bar(strength), const SizedBox(height: 12),
-      TextField(controller: confirmCtrl, obscureText: true, decoration: const InputDecoration(labelText: '确认密码', border: OutlineInputBorder())),
+      TextField(controller: confirmCtrl, obscureText: obscureConfirm, decoration: InputDecoration(labelText: '确认密码', border: const OutlineInputBorder(), suffixIcon: IconButton(icon: Icon(obscureConfirm ? Icons.visibility_off_outlined : Icons.visibility_outlined), onPressed: () => dialogSetState(() => obscureConfirm = !obscureConfirm)))),
     ]), actions: [
       TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('取消')),
       FilledButton(onPressed: passwordCtrl.text.length >= 8 && passwordCtrl.text == confirmCtrl.text ? () async { Navigator.pop(dialogContext); final kek = await _credService.setupPassphrase(passwordCtrl.text); _credService.startSession(kek); await _loadState(); if (mounted) ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('密码已设置'), backgroundColor: Colors.green)); } : null, child: const Text('设置')),
@@ -164,10 +166,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _unlock(BuildContext ctx) {
     final passwordCtrl = TextEditingController();
-    showDialog(context: ctx, builder: (dialogContext) => AlertDialog(title: const Text('解锁密钥'), content: Column(mainAxisSize: MainAxisSize.min, children: [const Text('输入密码以解锁 KEK 会话'), const SizedBox(height: 16), TextField(controller: passwordCtrl, obscureText: true, decoration: const InputDecoration(labelText: '密码', border: OutlineInputBorder()))]), actions: [
+    var obscure = true;
+    showDialog(context: ctx, builder: (dialogContext) => StatefulBuilder(builder: (dialogContext, dialogSetState) => AlertDialog(title: const Text('解锁密钥'), content: Column(mainAxisSize: MainAxisSize.min, children: [const Text('输入密码以解锁 KEK 会话'), const SizedBox(height: 16), TextField(controller: passwordCtrl, obscureText: obscure, decoration: InputDecoration(labelText: '密码', border: const OutlineInputBorder(), suffixIcon: IconButton(icon: Icon(obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined), onPressed: () => dialogSetState(() => obscure = !obscure))))]), actions: [
       TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('取消')),
       FilledButton(onPressed: () async { try { await _credService.unlockWithPassphrase(passwordCtrl.text); if (!mounted) return; Navigator.pop(dialogContext); await _loadState(); if (mounted) ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('已解锁'), backgroundColor: Colors.green)); } on WrongPassphraseException { if (mounted) ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('密码错误'))); } catch (_) { if (mounted) ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('解锁失败，请重试'))); } }, child: const Text('解锁')),
-    ]));
+    ])));
   }
 
   Future<void> _resetPw() async {
