@@ -6,7 +6,8 @@ import '../../../services/providers.dart';
 import '../../../services/ttl/ttl_config.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
-  const SettingsScreen({super.key});
+  final ValueNotifier<int>? reloadNotifier;
+  const SettingsScreen({super.key, this.reloadNotifier});
   @override
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
@@ -37,10 +38,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     super.initState();
     _credService = ref.read(credentialServiceProvider);
     _loadState();
+    widget.reloadNotifier?.addListener(_onReload);
   }
+
+  void _onReload() => _loadState();
 
   @override
   void dispose() {
+    widget.reloadNotifier?.removeListener(_onReload);
     _endpointCtrl.dispose(); _bucketCtrl.dispose(); _regionCtrl.dispose();
     _accessKeyCtrl.dispose(); _secretKeyCtrl.dispose();
     super.dispose();
@@ -136,32 +141,57 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     var strength = _Strength.none;
     var obscurePw = true;
     var obscureConfirm = true;
-    showDialog(context: ctx, builder: (dialogContext) => StatefulBuilder(builder: (dialogContext, dialogSetState) => AlertDialog(title: const Text('设置加密密码'), content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.orange.withAlpha(20),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.orange.withAlpha(60)),
+    String? errorText;
+    showDialog(context: ctx, builder: (dialogContext) => StatefulBuilder(builder: (dialogContext, dialogSetState) {
+      String? validate() {
+        final pw = passwordCtrl.text;
+        if (pw.isEmpty) return null;
+        if (pw.length < 8) return '密码至少需要 8 位';
+        if (pw != confirmCtrl.text && confirmCtrl.text.isNotEmpty) return '两次输入的密码不一致';
+        return null;
+      }
+
+      return AlertDialog(title: const Text('设置加密密码'), content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.orange.withAlpha(20),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.orange.withAlpha(60)),
+          ),
+          child: const Row(children: [
+            Icon(Icons.shield_rounded, size: 20, color: Colors.orange),
+            SizedBox(width: 8),
+            Expanded(child: Text('端到端加密', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.orange))),
+          ]),
         ),
-        child: const Row(children: [
-          Icon(Icons.shield_rounded, size: 20, color: Colors.orange),
-          SizedBox(width: 8),
-          Expanded(child: Text('端到端加密', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.orange))),
-        ]),
-      ),
-      const SizedBox(height: 12),
-      const Text('你的照片会在上传前加密，服务器无法查看内容。此密码用于加密和解密你的照片及凭证。', style: TextStyle(fontSize: 13)),
-      const SizedBox(height: 8),
-      const Text('⚠️ 请牢记此密码。忘记密码将无法解密照片，且无法恢复。', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.red)),
-      const SizedBox(height: 16),
-      TextField(controller: passwordCtrl, obscureText: obscurePw, decoration: InputDecoration(labelText: '密码', hintText: '建议大小写字母+数字+符号', border: const OutlineInputBorder(), suffixIcon: IconButton(icon: Icon(obscurePw ? Icons.visibility_off_outlined : Icons.visibility_outlined), onPressed: () => dialogSetState(() => obscurePw = !obscurePw))), onChanged: (_) => dialogSetState(() => strength = _calc(passwordCtrl.text))),
-      _bar(strength), const SizedBox(height: 12),
-      TextField(controller: confirmCtrl, obscureText: obscureConfirm, decoration: InputDecoration(labelText: '确认密码', border: const OutlineInputBorder(), suffixIcon: IconButton(icon: Icon(obscureConfirm ? Icons.visibility_off_outlined : Icons.visibility_outlined), onPressed: () => dialogSetState(() => obscureConfirm = !obscureConfirm)))),
-    ]), actions: [
-      TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('取消')),
-      FilledButton(onPressed: passwordCtrl.text.length >= 8 && passwordCtrl.text == confirmCtrl.text ? () async { Navigator.pop(dialogContext); final kek = await _credService.setupPassphrase(passwordCtrl.text); _credService.startSession(kek); await _loadState(); if (mounted) ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('密码已设置'), backgroundColor: Colors.green)); } : null, child: const Text('设置')),
-    ])));
+        const SizedBox(height: 12),
+        const Text('你的照片会在上传前加密，服务器无法查看内容。此密码用于加密和解密你的照片及凭证。', style: TextStyle(fontSize: 13)),
+        const SizedBox(height: 8),
+        const Text('⚠️ 请牢记此密码。忘记密码将无法解密照片，且无法恢复。', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.red)),
+        const SizedBox(height: 16),
+        TextField(controller: passwordCtrl, obscureText: obscurePw, decoration: InputDecoration(labelText: '密码', hintText: '建议大小写字母+数字+符号', border: const OutlineInputBorder(), suffixIcon: IconButton(icon: Icon(obscurePw ? Icons.visibility_off_outlined : Icons.visibility_outlined), onPressed: () => dialogSetState(() => obscurePw = !obscurePw))), onChanged: (_) => dialogSetState(() { strength = _calc(passwordCtrl.text); errorText = validate(); })),
+        _bar(strength), const SizedBox(height: 12),
+        TextField(controller: confirmCtrl, obscureText: obscureConfirm, decoration: InputDecoration(labelText: '确认密码', border: const OutlineInputBorder(), suffixIcon: IconButton(icon: Icon(obscureConfirm ? Icons.visibility_off_outlined : Icons.visibility_outlined), onPressed: () => dialogSetState(() => obscureConfirm = !obscureConfirm))), onChanged: (_) => dialogSetState(() => errorText = validate())),
+        if (errorText != null) ...[
+          const SizedBox(height: 8),
+          Text(errorText!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+        ],
+      ]), actions: [
+        TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('取消')),
+        FilledButton(onPressed: () async {
+          final pw = passwordCtrl.text;
+          final err = validate();
+          if (err != null) { dialogSetState(() => errorText = err); return; }
+          if (pw.isEmpty) { dialogSetState(() => errorText = '请输入密码'); return; }
+          Navigator.pop(dialogContext);
+          final kek = await _credService.setupPassphrase(pw);
+          _credService.startSession(kek);
+          await _loadState();
+          if (mounted) ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('密码已设置'), backgroundColor: Colors.green));
+        }, child: const Text('设置')),
+      ]);
+    }));
   }
 
   void _unlock(BuildContext ctx) {

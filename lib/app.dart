@@ -41,6 +41,7 @@ class MainScreen extends ConsumerStatefulWidget {
 
 class _MainScreenState extends ConsumerState<MainScreen> {
   final _log = Logger('MainScreen');
+  final _settingsReload = ValueNotifier<int>(0);
   int _currentIndex = 0;
 
   @override
@@ -55,6 +56,8 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     final unlocked = await credService.autoUnlock();
     if (unlocked) {
       _log.info('KEK session auto-unlocked');
+      // Notify SettingsScreen to reload (session is now active).
+      _settingsReload.value++;
     }
 
     // Run TTL cleanup after unlock.
@@ -73,7 +76,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     return <Widget>[
       supportsPhotos ? const LocalGalleryScreen() : const _TabScreen(title: '本地', icon: Icons.photo_library_rounded, color: Colors.blue),
       CloudGalleryScreen(onNavigateToSettings: () => setState(() => _currentIndex = 2)),
-      const SettingsScreen(),
+      SettingsScreen(reloadNotifier: _settingsReload),
     ];
   }
 
