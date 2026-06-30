@@ -245,10 +245,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         secretKey: _secretKeyCtrl.text.trim(),
         updatedAt: DateTime.now().millisecondsSinceEpoch,
       ));
-      await s3.listObjects('');
+      final msg = await s3.testConnection();
       if (mounted) setState(() { _s3TestResult = true; _s3Testing = false; });
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.green));
     } catch (e) {
+      final msg = e is StorageException ? e.message : '连接失败: $e';
       if (mounted) setState(() { _s3TestResult = false; _s3Testing = false; });
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
     }
   }
 

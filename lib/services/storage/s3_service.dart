@@ -48,14 +48,60 @@ class S3Service {
 
   // ── HTTP operations ──
 
-  Future<bool> testConnection() async {
+  /// Test S3 connection and required permissions (HEAD, LIST, PUT, GET).
+  /// Returns a message describing the result. Throws on failure.
+  Future<String> testConnection() async {
     _ensureConfigured();
+    final bucket = _config!.bucketName;
+    const testKey = '.enpix-connection-test';
+    final testData = Uint8List.fromList([1, 2, 3, 4]);
+
+    // 1. HEAD bucket — test connectivity.
     try {
-      await _dio.head('/${_config!.bucketName}', options: _signedOptions('HEAD', '/${_config!.bucketName}'));
-      return true;
+      await _dio.head('/$bucket', options: _signedOptions('HEAD', '/$bucket'));
     } on Exception catch (e) {
-      throw StorageException(message: 'S3 connection failed: $e', cause: e);
+      throw StorageException(message: '无法连接: $e', cause: e);
     }
+
+    // 2. LIST — test list permission.
+    try {
+      await _dio.get('/$bucket?list-type=2&max-keys=1', options: _signedOptions('GET', '/$bucket'));
+    } on Exception catch (e) {
+      throw StorageException(message: '无 LIST 权限: $e', cause: e);
+    }
+
+    // 3. PUT — test write permission.
+    try {
+      final sha = sha256.convert(testData).toString();
+      await _dio.put('/$bucket/$testKey', data: Stream.value(testData), options: _signedOptions('PUT', '/$testKey', headers: {
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': testData.length.toString(),
+        'x-amz-content-sha256': sha,
+      }, payloadHash: sha));
+    } on Exception catch (e) {
+      throw StorageException(message: '无写入权限: $e', cause: e);
+    }
+
+    // 4. HEAD object — test head permission.
+    try {
+      await _dio.head('/$bucket/$testKey', options: _signedOptions('HEAD', '/$testKey'));
+    } on Exception catch (e) {
+      throw StorageException(message: '无 HEAD 权限: $e', cause: e);
+    }
+
+    // 5. GET — test read permission.
+    try {
+      await _dio.get('/$bucket/$testKey', options: _signedOptions('GET', '/$testKey'));
+    } on Exception catch (e) {
+      throw StorageException(message: '无读取权限: $e', cause: e);
+    }
+
+    // 6. Cleanup.
+    try {
+      await _dio.delete('/$bucket/$testKey', options: _signedOptions('DELETE', '/$testKey'));
+    } catch (_) {}
+
+    return '连接成功，权限正常';
   }
 
   Future<void> putObject(String key, Uint8List data, {Map<String, String>? metadata, String? contentType}) async {
