@@ -71,11 +71,10 @@ class UploadService {
       _crypto.secureFree(dek);
     }
 
-    // 7. Build S3 keys
-    final fingerprint = await _credService.getKekFingerprint();
+    // 7. Build S3 keys (uses instance _deviceId via makeKey/makeThumbKey)
     final fileId = const Uuid().v7();
-    final key = S3Service.generateKey(fingerprint ?? 'shared', fileId, createdAt);
-    final thumbKey = S3Service.generateThumbKey(fingerprint ?? 'shared', fileId, createdAt);
+    final key = _s3.makeKey(fileId, createdAt);
+    final thumbKey = _s3.makeThumbKey(fileId, createdAt);
 
     // 8. Upload original to S3
     try {

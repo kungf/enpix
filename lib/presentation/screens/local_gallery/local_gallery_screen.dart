@@ -3,11 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:photo_manager/photo_manager.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../services/crypto/credential_service.dart';
-import '../../../services/upload/upload_service.dart';
-import '../../../services/storage/s3_service.dart';
 import '../../../services/providers.dart';
-import '../../../services/cache/thumbnail_cache.dart';
 import '../../../domain/entities/storage_config.dart';
 
 /// Local photo browser — shows device photos grouped by day, like the Photos app.
@@ -177,37 +173,28 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen> {
     if (mounted) setState(() => _uploadedIds.addAll(ids));
   }
 
-  /// Upload selected files (or single file) to S3.
-  Future<void> _uploadAssets(List<AssetEntity> assets) async {
-    final crypto = ref.read(cryptoServiceProvider);
+  /// Configure S3 service from saved credentials. Returns false if config is incomplete.
+  Future<bool> _configureS3() async {
     final credService = ref.read(credentialServiceProvider);
-    final s3 = ref.read(s3ServiceProvider);
-    final uploader = UploadService(crypto, credService, s3);
-
-    if (!credService.isSessionActive) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请先在设置中解锁密钥')));
-      return;
-    }
-
-    // Load S3 configuration from encrypted credential store.
     final s3Creds = await credService.loadS3Credentials();
-    if (!mounted) return;
+    if (!mounted) return false;
     if (s3Creds == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请先在设置中配置 S3 存储')));
-      return;
+      return false;
     }
 
-    // Load full config from saved settings (endpoint, bucket, region).
     final endpointUrl = await credService.getS3Endpoint() ?? '';
     final bucketName = await credService.getS3Bucket() ?? '';
-    final region = await credService.getS3Region() ?? 'us-east-1';
+    final region = await credService.getS3Region() ?? 'default';
 
     if (endpointUrl.isEmpty || bucketName.isEmpty) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('S3 配置不完整，请检查设置')));
-      return;
+      return false;
     }
 
-    s3.configure(
+    final deviceId = await ref.read(deviceServiceProvider).getDeviceId();
+
+    ref.read(s3ServiceProvider).configure(
       StorageConfig(
         endpointUrl: endpointUrl,
         bucketName: bucketName,
@@ -217,44 +204,144 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen> {
         updatedAt: DateTime.now().millisecondsSinceEpoch,
       ),
       kekFingerprint: await credService.getKekFingerprint(),
+      deviceId: deviceId,
     );
+    return true;
+  }
 
-    int uploaded = 0, skipped = 0, failed = 0;
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('开始上传 ${assets.length} 个文件...')));
+  Future<void> _startForceBackup() async {
+    final credService = ref.read(credentialServiceProvider);
+    final manager = ref.read(backupManagerProvider.notifier);
 
-    for (final asset in assets) {
-      final file = await asset.originFile;
-      if (file == null || !file.existsSync()) { failed++; continue; }
+    if (ref.read(backupManagerProvider).isRunning) {
+      _showBackupProgress();
+      return;
+    }
 
-      // Dedup: fast check by asset ID (no file read needed)
-      if (await ref.read(uploadTrackerProvider).isUploaded(asset.id)) { skipped++; continue; }
+    if (!credService.isSessionActive) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请先在设置中解锁密钥')));
+      return;
+    }
 
-      final result = await uploader.upload(
-        localPath: file.path, fileName: asset.title ?? 'photo',
-        mimeType: asset.mimeType ?? 'image/jpeg',
-        createdAt: asset.createDateTime, kek: credService.sessionKek!,
+    if (!await _configureS3()) return;
+    await manager.startForceFull();
+
+    final ids = await ref.read(uploadTrackerProvider).uploadedAssetIds;
+    if (mounted) setState(() => _uploadedIds.addAll(ids));
+  }
+
+  Future<void> _startBackup() async {
+    final credService = ref.read(credentialServiceProvider);
+    final manager = ref.read(backupManagerProvider.notifier);
+
+    if (ref.read(backupManagerProvider).isRunning) {
+      _showBackupProgress();
+      return;
+    }
+
+    if (!credService.isSessionActive) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请先在设置中解锁密钥')));
+      return;
+    }
+
+    if (!await _configureS3()) return;
+    await manager.startFull();
+
+    final ids = await ref.read(uploadTrackerProvider).uploadedAssetIds;
+    if (mounted) setState(() => _uploadedIds.addAll(ids));
+  }
+
+  void _showBackupProgress() {
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => Consumer(
+        builder: (context, ref, _) {
+          final task = ref.watch(backupManagerProvider);
+          final manager = ref.read(backupManagerProvider.notifier);
+          return Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Row(children: [
+                Icon(task.isRunning ? Icons.cloud_upload_rounded : Icons.check_circle_rounded,
+                    color: task.isRunning ? Colors.green : Colors.grey),
+                const SizedBox(width: 12),
+                Text(task.isRunning ? '正在备份...' : '备份完成', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                const Spacer(),
+                Text(task.progressText, style: const TextStyle(color: Colors.grey)),
+              ]),
+              const SizedBox(height: 16),
+              LinearProgressIndicator(value: task.progress),
+              if (task.currentFileName != null) ...[
+                const SizedBox(height: 12),
+                Text(task.currentFileName!, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              ],
+              const SizedBox(height: 16),
+              Row(children: [
+                _stat(Icons.check_rounded, Colors.green, '${task.completedCount} 成功'),
+                const SizedBox(width: 16),
+                _stat(Icons.skip_next_rounded, Colors.orange, '${task.skippedCount} 跳过'),
+                const SizedBox(width: 16),
+                _stat(Icons.error_outline_rounded, Colors.red, '${task.failedCount} 失败'),
+                const Spacer(),
+                if (task.isRunning)
+                  TextButton.icon(
+                    onPressed: () { manager.stop(); Navigator.pop(context); },
+                    icon: const Icon(Icons.stop_rounded, size: 18),
+                    label: const Text('停止'),
+                  )
+                else
+                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('关闭')),
+              ]),
+            ]),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _stat(IconData icon, Color color, String label) {
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 16, color: color),
+      const SizedBox(width: 4),
+      Text(label, style: TextStyle(fontSize: 12, color: color)),
+    ]);
+  }
+
+  Widget _buildFab() {
+    final task = ref.watch(backupManagerProvider);
+
+    if (task.isRunning) {
+      return FloatingActionButton.extended(
+        onPressed: _showBackupProgress,
+        backgroundColor: Colors.green,
+        icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white),
+        label: Text(task.progressText, style: const TextStyle(color: Colors.white)),
       );
-
-      if (result.success) {
-        await ref.read(uploadTrackerProvider).markUploaded(asset.id);
-        // Cache thumbnail locally for cloud gallery browsing
-        if (result.thumbData != null) {
-          await ref.read(thumbnailCacheProvider).save(asset.id, result.thumbData!);
-        }
-        _uploadedIds.add(asset.id);
-        uploaded++;
-      } else {
-        failed++;
-      }
     }
 
-    if (mounted) {
-      setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('上传完成: $uploaded 成功, $skipped 跳过, $failed 失败'),
-        backgroundColor: uploaded > 0 ? Colors.green : Colors.red,
-      ));
+    if (task.isDone) {
+      return FloatingActionButton.extended(
+        onPressed: _showBackupProgress,
+        backgroundColor: task.failedCount > 0 ? Colors.orange : Colors.green,
+        icon: Icon(
+          task.failedCount > 0 ? Icons.warning_rounded : Icons.check_rounded,
+          color: Colors.white,
+        ),
+        label: Text(
+          task.failedCount > 0 ? '${task.failedCount} 失败' : '完成',
+          style: const TextStyle(color: Colors.white),
+        ),
+      );
     }
+
+    return GestureDetector(
+      onLongPress: _startForceBackup,
+      child: FloatingActionButton.extended(
+        onPressed: _startBackup,
+        icon: const Icon(Icons.cloud_upload_rounded),
+        label: const Text('备份'),
+      ),
+    );
   }
 
   @override
@@ -269,7 +356,7 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen> {
       ),
       body: _buildBody(),
       floatingActionButton: _hasPermission && (_assets.isNotEmpty || AppConstants.isIntegrationTest)
-          ? FloatingActionButton.extended(onPressed: () => _uploadAssets(_assets), icon: const Icon(Icons.cloud_upload_rounded), label: const Text('备份'))
+          ? _buildFab()
           : null,
     );
   }

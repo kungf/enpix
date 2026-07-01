@@ -12,37 +12,46 @@ class S3Service {
   final Dio _dio = Dio(BaseOptions(connectTimeout: const Duration(seconds: 30), receiveTimeout: const Duration(seconds: 300)));
   StorageConfig? _config;
   String? _kekFingerprint;
+  String? _deviceId;
 
-  void configure(StorageConfig config, {String? kekFingerprint}) {
+  void configure(StorageConfig config, {String? kekFingerprint, String? deviceId}) {
     _log.info('Configuring S3: ${config.endpointUrl} / ${config.bucketName}');
     _config = config;
     _kekFingerprint = kekFingerprint;
+    _deviceId = deviceId;
     _dio.options.baseUrl = config.endpointUrl;
+  }
+
+  /// Update only the deviceId (used by BackupManager before uploading).
+  void setDeviceId(String deviceId) {
+    _deviceId = deviceId;
   }
 
   bool get isConfigured => _config != null;
 
   // ── Path helpers ──
 
-  static String generateKey(String fingerprint, String fileId, DateTime createdAt) {
+  static String generateKey(String fingerprint, String fileId, DateTime createdAt, {String? deviceId}) {
     final prefix = fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared';
     final date = '${createdAt.year}${createdAt.month.toString().padLeft(2, '0')}${createdAt.day.toString().padLeft(2, '0')}';
-    return '$prefix/files/$date/$fileId.enc';
+    final device = deviceId ?? 'default';
+    return '$prefix/$device/files/$date/$fileId.enc';
   }
 
   String makeKey(String fileId, DateTime createdAt) {
-    return generateKey(_kekFingerprint ?? 'shared', fileId, createdAt);
+    return generateKey(_kekFingerprint ?? 'shared', fileId, createdAt, deviceId: _deviceId);
   }
 
   /// Generate S3 key for a thumbnail.
-  static String generateThumbKey(String fingerprint, String fileId, DateTime createdAt) {
+  static String generateThumbKey(String fingerprint, String fileId, DateTime createdAt, {String? deviceId}) {
     final prefix = fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared';
     final date = '${createdAt.year}${createdAt.month.toString().padLeft(2, '0')}${createdAt.day.toString().padLeft(2, '0')}';
-    return '$prefix/thumbs/$date/$fileId\_thumb.enc';
+    final device = deviceId ?? 'default';
+    return '$prefix/$device/thumbs/$date/$fileId\_thumb.enc';
   }
 
   String makeThumbKey(String fileId, DateTime createdAt) {
-    return generateThumbKey(_kekFingerprint ?? 'shared', fileId, createdAt);
+    return generateThumbKey(_kekFingerprint ?? 'shared', fileId, createdAt, deviceId: _deviceId);
   }
 
   // ── HTTP operations ──
@@ -165,6 +174,44 @@ class S3Service {
     } catch (e) {
       throw StorageException(message: 'DELETE failed: $key — $e', cause: e);
     }
+  }
+
+  // ── Device registry ──
+
+  /// Register this device by writing a JSON file at {fingerprint}/devices/{deviceId}.json
+  Future<void> registerDevice(String deviceId, String deviceName) async {
+    final fingerprint = _kekFingerprint ?? 'shared';
+    final fpPrefix = fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared';
+    final key = '$fpPrefix/devices/$deviceId.json';
+    final json = jsonEncode({'name': deviceName, 'registeredAt': DateTime.now().toUtc().toIso8601String()});
+    await putObject(key, Uint8List.fromList(utf8.encode(json)), contentType: 'application/json');
+    _log.info('Registered device: $deviceId ($deviceName)');
+  }
+
+  /// List all registered devices under this fingerprint.
+  /// Returns map of deviceId → DeviceInfo.
+  Future<Map<String, DeviceInfo>> listDevices() async {
+    final fingerprint = _kekFingerprint ?? 'shared';
+    final fpPrefix = fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared';
+    final prefix = '$fpPrefix/devices/';
+    final objects = await listObjects(prefix);
+
+    final devices = <String, DeviceInfo>{};
+    for (final obj in objects) {
+      if (!obj.key.endsWith('.json')) continue;
+      final deviceId = obj.key.split('/').last.replaceAll('.json', '');
+      try {
+        final bytes = await getObject(obj.key);
+        final json = utf8.decode(bytes);
+        final map = jsonDecode(json) as Map<String, dynamic>;
+        final name = map['name'] as String? ?? deviceId;
+        devices[deviceId] = DeviceInfo(deviceId: deviceId, name: name);
+      } catch (e) {
+        _log.warning('Failed to read device info for $deviceId: $e');
+        devices[deviceId] = DeviceInfo(deviceId: deviceId, name: deviceId);
+      }
+    }
+    return devices;
   }
 
   /// List objects under [prefix]. Returns all matching objects (paginated internally).
@@ -317,4 +364,12 @@ class S3Object {
   final String lastModified;
 
   const S3Object({required this.key, required this.size, required this.lastModified});
+}
+
+/// A registered device in the S3 device registry.
+class DeviceInfo {
+  final String deviceId;
+  final String name;
+
+  const DeviceInfo({required this.deviceId, required this.name});
 }

@@ -1,8 +1,11 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../../services/crypto/credential_service.dart';
 import '../../../services/crypto/crypto_service.dart';
+import '../../../services/device_service.dart';
 import '../../../services/storage/s3_service.dart';
 import '../../../services/cache/thumbnail_cache.dart';
 import '../../../services/providers.dart';
@@ -19,6 +22,9 @@ class CloudGalleryScreen extends ConsumerStatefulWidget {
 }
 
 class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
+  static const _selectedDeviceKey = 'cloud_selected_device_id';
+  static const _allDevicesId = '__all__';
+
   bool _loading = false;
   bool _error = false;
   bool _needPassphrase = false;
@@ -26,10 +32,30 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
   List<_CloudDaySection> _sections = [];
   String? _prefix;
 
+  // Device selector state
+  Map<String, DeviceInfo> _devices = {};
+  String _selectedDeviceId = _allDevicesId;
+  String? _currentDeviceId;
+
   @override
   void initState() {
     super.initState();
-    _loadCloudThumbs();
+    _init();
+  }
+
+  Future<void> _init() async {
+    // Restore last selected device.
+    final storage = const FlutterSecureStorage();
+    final saved = await storage.read(key: _selectedDeviceKey);
+    if (saved != null) _selectedDeviceId = saved;
+
+    // Get current device ID.
+    _currentDeviceId = await ref.read(deviceServiceProvider).getDeviceId();
+
+    // If no saved selection, default to current device.
+    if (saved == null) _selectedDeviceId = _currentDeviceId!;
+
+    await _loadCloudThumbs();
   }
 
   Future<void> _loadCloudThumbs() async {
@@ -80,6 +106,7 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
 
         final region = await credService.getS3Region() ?? 'default';
         final fingerprint = await credService.getKekFingerprint();
+        final deviceId = await ref.read(deviceServiceProvider).getDeviceId();
 
         s3.configure(
           StorageConfig(
@@ -91,14 +118,28 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
             updatedAt: DateTime.now().millisecondsSinceEpoch,
           ),
           kekFingerprint: fingerprint,
+          deviceId: deviceId,
         );
       }
 
-      // List all thumbnails from S3 — use base prefix to get all dates.
       final fingerprint = await credService.getKekFingerprint() ?? 'shared';
       final fpPrefix = fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared';
-      _prefix = '$fpPrefix/thumbs/';
-      final objects = await s3.listObjects(_prefix!);
+
+      // Load device list.
+      final devices = await s3.listDevices();
+      _devices = devices;
+
+      // Determine prefix based on selected device.
+      List<S3Object> objects;
+      if (_selectedDeviceId == _allDevicesId) {
+        // List all thumbs across all devices.
+        _prefix = '$fpPrefix/';
+        final allObjects = await s3.listObjects(_prefix!);
+        objects = allObjects.where((o) => o.key.contains('/thumbs/')).toList();
+      } else {
+        _prefix = '$_selectedDeviceId/thumbs/';
+        objects = await s3.listObjects('$fpPrefix/$_prefix');
+      }
 
       // Sort by key descending (newest first, UUIDv7 is time-ordered)
       objects.sort((a, b) => b.key.compareTo(a.key));
@@ -110,7 +151,8 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
         final fileId = _extractFileId(obj.key);
         if (fileId == null) continue;
 
-        // Extract date from S3 key path: .../thumbs/{date}/{fileId}_thumb.enc
+        // Extract deviceId and date from S3 key: {fp}/{deviceId}/thumbs/{date}/{fileId}_thumb.enc
+        final deviceId = _extractDeviceId(obj.key);
         final date = _extractDateFromKey(obj.key);
         final dateKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
@@ -121,11 +163,13 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
           s3Key: obj.key,
           cachedData: cached,
           createdAt: date,
+          deviceId: deviceId,
         ));
       }
 
       final sortedKeys = groups.keys.toList()..sort((a, b) => b.compareTo(a));
 
+      if (!mounted) return;
       setState(() {
         _sections = sortedKeys.map((key) {
           final date = DateTime.parse(key);
@@ -138,6 +182,7 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
         _loading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _loading = false;
         _error = true;
@@ -146,13 +191,21 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
     }
   }
 
-  /// Extract fileId from S3 key: {prefix}/thumbs/{date}/{fileId}_thumb.enc
+  /// Extract fileId from S3 key: {fp}/{deviceId}/thumbs/{date}/{fileId}_thumb.enc
   String? _extractFileId(String key) {
     final parts = key.split('/');
     if (parts.isEmpty) return null;
     final fileName = parts.last;
     if (!fileName.endsWith('_thumb.enc')) return null;
     return fileName.replaceAll('_thumb.enc', '');
+  }
+
+  /// Extract deviceId from S3 key: {fp}/{deviceId}/thumbs/{date}/...
+  String _extractDeviceId(String key) {
+    final parts = key.split('/');
+    // parts: [fp, deviceId, thumbs, date, file]
+    if (parts.length >= 2) return parts[1];
+    return 'default';
   }
 
   /// Extract date from S3 key path: .../thumbs/{date}/{fileId}_thumb.enc
@@ -166,6 +219,7 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
           final year = int.parse(part.substring(0, 4));
           final month = int.parse(part.substring(4, 6));
           final day = int.parse(part.substring(6, 8));
+          if (month < 1 || month > 12 || day < 1 || day > 31) continue;
           return DateTime(year, month, day);
         }
       }
@@ -241,7 +295,7 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
       }
 
       final fingerprint = await credService.getKekFingerprint() ?? 'shared';
-      final fullKey = S3Service.generateKey(fingerprint, thumb.fileId, thumb.createdAt);
+      final fullKey = S3Service.generateKey(fingerprint, thumb.fileId, thumb.createdAt, deviceId: thumb.deviceId);
 
       final encrypted = await s3.getObject(fullKey);
       final meta = await s3.headObject(fullKey);
@@ -274,6 +328,20 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
     }
   }
 
+  Future<void> _saveSelectedDevice(String deviceId) async {
+    final storage = const FlutterSecureStorage();
+    await storage.write(key: _selectedDeviceKey, value: deviceId);
+  }
+
+  void _onDeviceSelected(String deviceId) {
+    setState(() {
+      _selectedDeviceId = deviceId;
+      _sections = [];
+    });
+    _saveSelectedDevice(deviceId);
+    _loadCloudThumbs();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -287,7 +355,46 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
           ),
         ],
       ),
-      body: _buildBody(),
+      body: Column(
+        children: [
+          if (_devices.isNotEmpty) _buildDeviceSelector(),
+          Expanded(child: _buildBody()),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeviceSelector() {
+    return SizedBox(
+      height: 48,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        children: [
+          _deviceChip(_allDevicesId, '全部', Icons.devices_rounded),
+          ..._devices.entries.map((e) => _deviceChip(
+            e.key,
+            e.value.name,
+            e.key == _currentDeviceId ? Icons.phone_iphone_rounded : Icons.phone_android_rounded,
+          )),
+        ],
+      ),
+    );
+  }
+
+  Widget _deviceChip(String deviceId, String label, IconData icon) {
+    final selected = _selectedDeviceId == deviceId;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        selected: selected,
+        label: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 16, color: selected ? null : Colors.grey),
+          const SizedBox(width: 4),
+          Text(label),
+        ]),
+        onSelected: (_) => _onDeviceSelected(deviceId),
+      ),
     );
   }
 
@@ -379,12 +486,14 @@ class _CloudThumb {
   final String s3Key;
   final Uint8List? cachedData;
   final DateTime createdAt;
+  final String deviceId;
 
   const _CloudThumb({
     required this.fileId,
     required this.s3Key,
     this.cachedData,
     required this.createdAt,
+    required this.deviceId,
   });
 }
 

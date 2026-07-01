@@ -56,4 +56,19 @@ class UploadTracker {
   Future<int> get uploadedCount async { await _ensureLoaded(); return _records.length; }
   Future<Set<String>> get uploadedAssetIds async { await _ensureLoaded(); return _records.keys.toSet(); }
   Future<void> remove(String assetId) async { await _ensureLoaded(); _records.remove(assetId); await _save(); }
+
+  /// Clear all upload records — triggers full re-upload on next backup.
+  Future<void> clear() async {
+    _records = {};
+    await _save();
+    _log.info('Upload records cleared');
+  }
+
+  /// Timestamp of the most recent upload (ms since epoch).
+  /// Returns 0 if no uploads exist.
+  Future<int> get lastBackupTime async {
+    await _ensureLoaded();
+    if (_records.isEmpty) return 0;
+    return _records.values.reduce((a, b) => a > b ? a : b);
+  }
 }

@@ -240,7 +240,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       s3.configure(StorageConfig(
         endpointUrl: endpoint,
         bucketName: bucket,
-        region: region.isNotEmpty ? region : 'us-east-1',
+        region: region.isNotEmpty ? region : 'default',
         accessKey: _accessKeyCtrl.text.trim(),
         secretKey: _secretKeyCtrl.text.trim(),
         updatedAt: DateTime.now().millisecondsSinceEpoch,
@@ -268,7 +268,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     // Always save endpoint/bucket/region (not secret).
     await _credService.saveS3Endpoint(endpoint);
     await _credService.saveS3Bucket(bucket);
-    await _credService.saveS3Region(region.isNotEmpty ? region : 'us-east-1');
+    await _credService.saveS3Region(region.isNotEmpty ? region : 'default');
 
     if (_hasPassphrase && !_credService.isSessionActive) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请先解锁密钥')));
