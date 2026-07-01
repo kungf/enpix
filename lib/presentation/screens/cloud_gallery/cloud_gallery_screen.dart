@@ -36,6 +36,7 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
     setState(() {
       _loading = true;
       _error = false;
+      _needPassphrase = false;
     });
 
     try {
@@ -44,6 +45,7 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
       final cache = ref.read(thumbnailCacheProvider);
 
       if (!s3.isConfigured) {
+        // Step 1: Check if encryption key is set up.
         if (!credService.isSessionActive) {
           setState(() {
             _loading = false;
@@ -53,29 +55,31 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
           return;
         }
 
+        // Step 2: Check S3 connection details (endpoint, bucket).
+        final endpointUrl = await credService.getS3Endpoint() ?? '';
+        final bucketName = await credService.getS3Bucket() ?? '';
+        if (endpointUrl.isEmpty || bucketName.isEmpty) {
+          setState(() {
+            _loading = false;
+            _error = true;
+            _errorMsg = '请先在 设置 → S3 存储配置 中填写 Endpoint 和 Bucket';
+          });
+          return;
+        }
+
+        // Step 3: Check S3 credentials (AK, SK).
         final s3Creds = await credService.loadS3Credentials();
         if (s3Creds == null) {
           setState(() {
             _loading = false;
             _error = true;
-            _errorMsg = '请先在设置中配置 S3 存储';
+            _errorMsg = '请先在 设置 → S3 存储配置 中填写 Access Key 和 Secret Key';
           });
           return;
         }
 
-        final endpointUrl = await credService.getS3Endpoint() ?? '';
-        final bucketName = await credService.getS3Bucket() ?? '';
-        final region = await credService.getS3Region() ?? 'us-east-1';
+        final region = await credService.getS3Region() ?? 'default';
         final fingerprint = await credService.getKekFingerprint();
-
-        if (endpointUrl.isEmpty || bucketName.isEmpty) {
-          setState(() {
-            _loading = false;
-            _error = true;
-            _errorMsg = 'S3 配置不完整，请检查设置';
-          });
-          return;
-        }
 
         s3.configure(
           StorageConfig(
@@ -90,8 +94,10 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
         );
       }
 
-      // List all thumbnails from S3
-      _prefix = s3.makeThumbKey('').replaceAll(RegExp(r'[^/]*$'), '');
+      // List all thumbnails from S3 — use base prefix to get all dates.
+      final fingerprint = await credService.getKekFingerprint() ?? 'shared';
+      final fpPrefix = fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared';
+      _prefix = '$fpPrefix/thumbs/';
       final objects = await s3.listObjects(_prefix!);
 
       // Sort by key descending (newest first, UUIDv7 is time-ordered)
@@ -279,6 +285,13 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
 
   Widget _buildBody() {
     if (_loading) return const Center(child: CircularProgressIndicator());
+    // If we showed the passphrase prompt but session is now active, reload.
+    if (_needPassphrase && ref.read(credentialServiceProvider).isSessionActive) {
+      _needPassphrase = false;
+      _error = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadCloudThumbs());
+      return const Center(child: CircularProgressIndicator());
+    }
     if (_error) {
       return Center(
         child: Padding(

@@ -26,10 +26,8 @@ class S3Service {
 
   static String generateKey(String fingerprint, String fileId, DateTime createdAt) {
     final prefix = fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared';
-    final y = createdAt.year.toString();
-    final m = createdAt.month.toString().padLeft(2, '0');
-    final d = createdAt.day.toString().padLeft(2, '0');
-    return '$prefix/files/$y/$m/$d/$fileId.enc';
+    final date = '${createdAt.year}${createdAt.month.toString().padLeft(2, '0')}${createdAt.day.toString().padLeft(2, '0')}';
+    return '$prefix/files/$date/$fileId.enc';
   }
 
   String makeKey(String fileId, DateTime createdAt) {
@@ -37,13 +35,14 @@ class S3Service {
   }
 
   /// Generate S3 key for a thumbnail.
-  static String generateThumbKey(String fingerprint, String fileId) {
+  static String generateThumbKey(String fingerprint, String fileId, DateTime createdAt) {
     final prefix = fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared';
-    return '$prefix/thumbs/$fileId\_thumb.enc';
+    final date = '${createdAt.year}${createdAt.month.toString().padLeft(2, '0')}${createdAt.day.toString().padLeft(2, '0')}';
+    return '$prefix/thumbs/$date/$fileId\_thumb.enc';
   }
 
-  String makeThumbKey(String fileId) {
-    return generateThumbKey(_kekFingerprint ?? 'shared', fileId);
+  String makeThumbKey(String fileId, DateTime createdAt) {
+    return generateThumbKey(_kekFingerprint ?? 'shared', fileId, createdAt);
   }
 
   // ── HTTP operations ──

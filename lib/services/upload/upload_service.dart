@@ -75,7 +75,7 @@ class UploadService {
     final fingerprint = await _credService.getKekFingerprint();
     final fileId = const Uuid().v7();
     final key = S3Service.generateKey(fingerprint ?? 'shared', fileId, createdAt);
-    final thumbKey = S3Service.generateThumbKey(fingerprint ?? 'shared', fileId);
+    final thumbKey = S3Service.generateThumbKey(fingerprint ?? 'shared', fileId, createdAt);
 
     // 8. Upload original to S3
     try {

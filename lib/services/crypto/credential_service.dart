@@ -199,43 +199,36 @@ class CredentialService {
 
   // ── S3 Credential Storage ────────────────────────────────────
 
-  /// Save encrypted S3 credentials. Requires an active KEK session.
+  /// Save S3 credentials. AK stored in plaintext, SK encrypted with KEK.
   Future<void> saveS3Credentials(String accessKey, String secretKey) async {
     if (!isSessionActive) throw StateError('KEK session not active');
 
-    // Encrypt AK
-    final nonce = _crypto.generateNonce();
-    final encryptedAk = await _crypto.encrypt(
-      Uint8List.fromList(utf8.encode(accessKey)),
-      _sessionKek!,
-      nonce,
-    );
-    await _storage.write(key: _encryptedAkKey, value: CryptoService.b64Encode(encryptedAk));
+    // AK — plaintext
+    await _storage.write(key: _encryptedAkKey, value: accessKey);
 
-    // Encrypt SK
-    final nonce2 = _crypto.generateNonce();
+    // SK — encrypted
+    final nonce = _crypto.generateNonce();
     final encryptedSk = await _crypto.encrypt(
       Uint8List.fromList(utf8.encode(secretKey)),
       _sessionKek!,
-      nonce2,
+      nonce,
     );
     await _storage.write(key: _encryptedSkKey, value: CryptoService.b64Encode(encryptedSk));
 
-    _log.info('S3 credentials encrypted and saved');
+    _log.info('S3 credentials saved (AK plain, SK encrypted)');
   }
 
-  /// Load and decrypt S3 credentials. Requires an active KEK session.
+  /// Load S3 credentials. AK from plaintext, SK decrypted with KEK.
   Future<({String accessKey, String secretKey})?> loadS3Credentials() async {
+    final ak = await _storage.read(key: _encryptedAkKey);
+    if (ak == null) return null;
+
+    // SK requires KEK session to decrypt.
     if (!isSessionActive) throw StateError('KEK session not active');
-
-    final encryptedAk = await _storage.read(key: _encryptedAkKey);
     final encryptedSk = await _storage.read(key: _encryptedSkKey);
+    if (encryptedSk == null) return null;
 
-    if (encryptedAk == null || encryptedSk == null) return null;
-
-    final ak = await _decryptString(encryptedAk, _sessionKek!);
     final sk = await _decryptString(encryptedSk, _sessionKek!);
-
     return (accessKey: ak, secretKey: sk);
   }
 
