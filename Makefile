@@ -20,6 +20,8 @@ test-integration:
 	$(ENV) && dart run test/integration/upload_pipeline_test.dart
 	$(ENV) && dart run test/integration/cloud_thumbnail_test.dart
 	$(ENV) && dart run test/integration/s3_connection_test.dart
+	$(ENV) && dart run test/integration/s3_test_connection_test.dart
+	$(ENV) && dart run test/integration/s3_list_objects_test.dart
 	dart run test/integration/ttl_engine_test.dart
 
 # UI integration tests on simulator (requires .env.test)

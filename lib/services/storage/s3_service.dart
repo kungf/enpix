@@ -65,7 +65,8 @@ class S3Service {
 
     // 2. LIST — test list permission.
     try {
-      await _dio.get('/$bucket?list-type=2&max-keys=1', options: _signedOptions('GET', '/$bucket'));
+      final listPath = '/$bucket?list-type=2&max-keys=1';
+      await _dio.get(listPath, options: _signedOptions('GET', listPath));
     } on Exception catch (e) {
       throw StorageException(message: '无 LIST 权限: $e', cause: e);
     }
@@ -73,7 +74,8 @@ class S3Service {
     // 3. PUT — test write permission.
     try {
       final sha = sha256.convert(testData).toString();
-      await _dio.put('/$bucket/$testKey', data: Stream.value(testData), options: _signedOptions('PUT', '/$testKey', headers: {
+      final objPath = '/$bucket/$testKey';
+      await _dio.put(objPath, data: Stream.value(testData), options: _signedOptions('PUT', objPath, headers: {
         'Content-Type': 'application/octet-stream',
         'Content-Length': testData.length.toString(),
         'x-amz-content-sha256': sha,
@@ -84,21 +86,24 @@ class S3Service {
 
     // 4. HEAD object — test head permission.
     try {
-      await _dio.head('/$bucket/$testKey', options: _signedOptions('HEAD', '/$testKey'));
+      final objPath = '/$bucket/$testKey';
+      await _dio.head(objPath, options: _signedOptions('HEAD', objPath));
     } on Exception catch (e) {
       throw StorageException(message: '无 HEAD 权限: $e', cause: e);
     }
 
     // 5. GET — test read permission.
     try {
-      await _dio.get('/$bucket/$testKey', options: _signedOptions('GET', '/$testKey'));
+      final objPath = '/$bucket/$testKey';
+      await _dio.get(objPath, options: _signedOptions('GET', objPath));
     } on Exception catch (e) {
       throw StorageException(message: '无读取权限: $e', cause: e);
     }
 
     // 6. Cleanup.
     try {
-      await _dio.delete('/$bucket/$testKey', options: _signedOptions('DELETE', '/$testKey'));
+      final objPath = '/$bucket/$testKey';
+      await _dio.delete(objPath, options: _signedOptions('DELETE', objPath));
     } catch (_) {}
 
     return '连接成功，权限正常';
@@ -176,11 +181,13 @@ class S3Service {
       if (continuationToken != null) {
         queryParts.add('continuation-token=${Uri.encodeComponent(continuationToken)}');
       }
+      // Sort for consistent signing.
+      queryParts.sort();
       final query = queryParts.join('&');
       final path = '/${_config!.bucketName}?$query';
 
       try {
-        final r = await _dio.get(path, options: _signedOptions('GET', '/${_config!.bucketName}'));
+        final r = await _dio.get(path, options: _signedOptions('GET', path));
         final body = r.data is String ? r.data as String : r.data.toString();
         final doc = XmlDocument.parse(body);
 
@@ -218,7 +225,7 @@ class S3Service {
     final amzDate = _fmt(now);
     final dateStamp = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
     final service = 's3';
-    final region = cfg.region.isNotEmpty ? cfg.region : 'us-east-1';
+    final region = cfg.region.isNotEmpty ? cfg.region : 'default';
     final contentSha256 = payloadHash ?? 'UNSIGNED-PAYLOAD';
 
     // Canonical headers (sorted alphabetically)
@@ -231,11 +238,29 @@ class S3Service {
     final canonicalHeaders = sortedKeys.map((k) => '${k.toLowerCase()}:${signedHdrs[k]!.trim()}').join('\n');
     final signedHeadersStr = sortedKeys.map((k) => k.toLowerCase()).join(';');
 
-    // Canonical request
+    // Canonical request — split path and query string.
+    // Encode query values to match Dio's URL encoding behavior.
+    final parts = path.split('?');
+    final canonicalPath = _uriEncodePath(parts[0]);
+    var canonicalQuery = '';
+    if (parts.length > 1) {
+      final params = parts[1].split('&').map((p) {
+        final eqIdx = p.indexOf('=');
+        if (eqIdx >= 0) {
+          final key = p.substring(0, eqIdx);
+          final val = p.substring(eqIdx + 1);
+          return '$key=${Uri.encodeComponent(val)}';
+        }
+        return p;
+      }).toList()
+        ..sort();
+      canonicalQuery = params.join('&');
+    }
+
     final canonicalRequest = [
       method,
-      _uriEncodePath(path),
-      '', // query string (empty for our use case)
+      canonicalPath,
+      canonicalQuery,
       '$canonicalHeaders\n',
       signedHeadersStr,
       contentSha256,
