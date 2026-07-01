@@ -110,10 +110,11 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
         final fileId = _extractFileId(obj.key);
         if (fileId == null) continue;
 
-        final cached = await cache.load(fileId);
-        final date = _parseUuidv7Date(fileId);
+        // Extract date from S3 key path: .../thumbs/{date}/{fileId}_thumb.enc
+        final date = _extractDateFromKey(obj.key);
         final dateKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
+        final cached = await cache.load(fileId);
         groups.putIfAbsent(dateKey, () => []);
         groups[dateKey]!.add(_CloudThumb(
           fileId: fileId,
@@ -145,7 +146,7 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
     }
   }
 
-  /// Extract fileId from S3 key: {prefix}/thumbs/{fileId}_thumb.enc
+  /// Extract fileId from S3 key: {prefix}/thumbs/{date}/{fileId}_thumb.enc
   String? _extractFileId(String key) {
     final parts = key.split('/');
     if (parts.isEmpty) return null;
@@ -154,15 +155,22 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
     return fileName.replaceAll('_thumb.enc', '');
   }
 
-  /// Parse date from UUIDv7 timestamp prefix.
-  DateTime _parseUuidv7Date(String uuid) {
+  /// Extract date from S3 key path: .../thumbs/{date}/{fileId}_thumb.enc
+  /// or .../files/{date}/{fileId}.enc
+  DateTime _extractDateFromKey(String key) {
     try {
-      final hex = uuid.replaceAll('-', '').substring(0, 12);
-      final millis = int.parse(hex, radix: 16);
-      return DateTime.fromMillisecondsSinceEpoch(millis);
-    } catch (_) {
-      return DateTime.now();
-    }
+      final parts = key.split('/');
+      // Find the date segment (8 digits, e.g., "20210409")
+      for (final part in parts) {
+        if (part.length == 8 && int.tryParse(part) != null) {
+          final year = int.parse(part.substring(0, 4));
+          final month = int.parse(part.substring(4, 6));
+          final day = int.parse(part.substring(6, 8));
+          return DateTime(year, month, day);
+        }
+      }
+    } catch (_) {}
+    return DateTime.now();
   }
 
   String _formatDateLabel(DateTime date) {

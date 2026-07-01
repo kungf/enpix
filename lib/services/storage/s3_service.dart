@@ -134,7 +134,9 @@ class S3Service {
     _ensureConfigured();
     try {
       final path = '/${_config!.bucketName}/$key';
-      final r = await _dio.get(path, options: _signedOptions('GET', path));
+      final signed = _signedOptions('GET', path);
+      signed.responseType = ResponseType.bytes;
+      final r = await _dio.get(path, options: signed);
       return Uint8List.fromList(r.data is List<int> ? r.data as List<int> : []);
     } catch (e) {
       throw StorageException(message: 'GET failed: $key — $e', cause: e);
