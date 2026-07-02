@@ -33,15 +33,18 @@ class BackupManager extends StateNotifier<BackupTask> {
     this._deviceService,
   ) : super(BackupTask(startedAt: DateTime.now()));
 
-  /// Start a force-full backup — clears upload history and re-uploads everything.
+  /// Start a force-full backup — re-uploads everything regardless of S3 state.
   Future<void> startForceFull() async {
-    await _tracker.clear();
-    await startFull();
+    await _startFull(force: true);
   }
 
   /// Start a backup with full scan (incremental).
-  /// Scans all photos from device, filters by lastBackupTime, skips uploaded.
+  /// Uses local manifest to find boundary — uploads all photos newer than the first uploaded one.
   Future<void> startFull() async {
+    await _startFull(force: false);
+  }
+
+  Future<void> _startFull({required bool force}) async {
     if (state.isRunning) {
       _log.warning('Backup already running, ignoring');
       return;
@@ -66,12 +69,7 @@ class BackupManager extends StateNotifier<BackupTask> {
       _log.warning('Device registration failed (non-fatal): $e');
     }
 
-    // Get last backup time for incremental filter.
-    final lastBackup = await _tracker.lastBackupTime;
-    final since = DateTime.fromMillisecondsSinceEpoch(lastBackup);
-    _log.info('Incremental backup: scanning since $since');
-
-    // Scan all photos from device.
+    // Scan local photos (newest first).
     final albums = await PhotoManager.getAssetPathList(
       type: RequestType.common,
       hasAll: true,
@@ -87,12 +85,7 @@ class BackupManager extends StateNotifier<BackupTask> {
     while (!_cancelled) {
       final assets = await albums[0].getAssetListPaged(page: page, size: pageSize);
       if (assets.isEmpty) break;
-      for (final asset in assets) {
-        // Incremental: only include photos created after last backup.
-        if (asset.createDateTime.isAfter(since)) {
-          allAssets.add(asset);
-        }
-      }
+      allAssets.addAll(assets);
       page++;
     }
 
@@ -101,17 +94,25 @@ class BackupManager extends StateNotifier<BackupTask> {
       return;
     }
 
-    // Pre-filter: remove already-uploaded assets.
+    // Find pending photos using manifest.
+    // Scan all photos, collect those not in manifest.
+    // This handles gaps from old time-based code or interrupted backups.
     final pending = <AssetEntity>[];
-    for (final asset in allAssets) {
-      if (!await _tracker.isUploaded(asset.id)) {
-        pending.add(asset);
+    if (force) {
+      pending.addAll(allAssets);
+    } else {
+      for (final asset in allAssets) {
+        if (!await _tracker.isUploaded(asset.id)) {
+          pending.add(asset);
+        }
       }
     }
 
-    _log.info('Found ${pending.length} new photos to backup');
+    // Reverse to upload oldest first.
+    final toUpload = pending.reversed.toList();
 
-    await _doBackup(pending);
+    _log.info('Found ${toUpload.length} new photos to backup');
+    await _doBackup(toUpload);
   }
 
   /// Start a backup with a pre-loaded list of assets.
@@ -200,6 +201,9 @@ class BackupManager extends StateNotifier<BackupTask> {
         errors: errors,
       );
     }
+
+    // Persist upload records after batch.
+    await _tracker.save();
 
     final finalStatus =
         _cancelled ? BackupStatus.stopped : BackupStatus.completed;

@@ -178,7 +178,6 @@ class S3Service {
 
   // ── Device registry ──
 
-  /// Register this device by writing a JSON file at {fingerprint}/devices/{deviceId}.json
   Future<void> registerDevice(String deviceId, String deviceName) async {
     final fingerprint = _kekFingerprint ?? 'shared';
     final fpPrefix = fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared';
