@@ -166,6 +166,7 @@ class BackupManager extends StateNotifier<BackupTask> {
       // Read bytes directly via photo_manager native API — avoids
       // temporary files and the TOCTOU race they introduce on iOS.
       final Uint8List? plaintext;
+      final tRead = DateTime.now();
       try {
         plaintext = await asset.originBytes;
       } catch (e, st) {
@@ -175,6 +176,10 @@ class BackupManager extends StateNotifier<BackupTask> {
         errors.add(msg);
         state = state.copyWith(failedCount: failed, errors: errors);
         continue;
+      }
+      final readMs = DateTime.now().difference(tRead).inMilliseconds;
+      if (readMs > 2000) {
+        _log.warning('SLOW read: $fileName took ${readMs}ms — likely iCloud download');
       }
 
       if (plaintext == null) {
@@ -190,6 +195,8 @@ class BackupManager extends StateNotifier<BackupTask> {
 
       // Upload — passes cancellation flag so the pipeline can abort
       // mid-flight instead of running to completion.
+      final tUpload = DateTime.now();
+      late final String uploadKind;
       try {
         final result = await _uploader.upload(
           plaintext: plaintext,
@@ -200,17 +207,21 @@ class BackupManager extends StateNotifier<BackupTask> {
           isCancelled: () => _cancelled,
         );
 
+        final uploadMs = DateTime.now().difference(tUpload).inMilliseconds;
         if (result.success) {
           await _tracker.markUploaded(asset.id);
           if (result.remoteExists) {
             skipped++;
+            uploadKind = 'skip';
           } else {
             if (result.thumbData != null) {
               await _cache.save(asset.id, result.thumbData!);
             }
             completed++;
             totalBytes += result.size ?? 0;
+            uploadKind = 'ok';
           }
+          _log.info('Upload $uploadKind: $fileName ${plaintext.length}B read=${readMs}ms upload=${uploadMs}ms');
         } else {
           failed++;
           final msg = result.error ?? '上传失败';
