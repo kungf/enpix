@@ -163,6 +163,12 @@ class BackupManager extends StateNotifier<BackupTask> {
       final fileName = asset.title ?? 'photo';
       state = state.copyWith(currentFileName: fileName);
 
+      // Check iCloud status — if the photo is in the cloud, originBytes
+      // will trigger a download, which can take many seconds.
+      if (!await asset.isLocallyAvailable()) {
+        _log.warning('iCloud photo, downloading: $fileName');
+      }
+
       // Read bytes directly via photo_manager native API — avoids
       // temporary files and the TOCTOU race they introduce on iOS.
       final Uint8List? plaintext;
@@ -178,9 +184,6 @@ class BackupManager extends StateNotifier<BackupTask> {
         continue;
       }
       final readMs = DateTime.now().difference(tRead).inMilliseconds;
-      if (readMs > 2000) {
-        _log.warning('SLOW read: $fileName took ${readMs}ms — likely iCloud download');
-      }
 
       if (plaintext == null) {
         failed++;
