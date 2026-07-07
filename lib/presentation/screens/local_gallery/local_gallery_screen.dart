@@ -277,6 +277,18 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen> {
                 Text(task.currentFileName!, style: const TextStyle(color: Colors.grey, fontSize: 12)),
               ],
               const SizedBox(height: 16),
+              if (task.isRunning || task.totalBytes > 0) ...[
+                Row(children: [
+                  Icon(Icons.speed_rounded, size: 14, color: Colors.grey.shade600),
+                  const SizedBox(width: 4),
+                  Text(task.bandwidthText, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  const SizedBox(width: 16),
+                  Icon(Icons.upload_file_rounded, size: 14, color: Colors.grey.shade600),
+                  const SizedBox(width: 4),
+                  Text(task.throughputText, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                ]),
+                const SizedBox(height: 12),
+              ],
               Row(children: [
                 _stat(Icons.check_rounded, Colors.green, '${task.completedCount} 成功'),
                 const SizedBox(width: 16),

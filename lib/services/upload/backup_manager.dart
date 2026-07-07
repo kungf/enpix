@@ -154,7 +154,7 @@ class BackupManager extends StateNotifier<BackupTask> {
 
     _log.info('Backup started: ${pending.length} pending, $totalSkipped total already uploaded');
 
-    int completed = 0, failed = 0, skipped = 0;
+    int completed = 0, failed = 0, skipped = 0, totalBytes = 0;
     final errors = <String>[];
 
     for (final asset in pending) {
@@ -209,6 +209,7 @@ class BackupManager extends StateNotifier<BackupTask> {
               await _cache.save(asset.id, result.thumbData!);
             }
             completed++;
+            totalBytes += result.size ?? 0;
           }
         } else {
           failed++;
@@ -229,6 +230,7 @@ class BackupManager extends StateNotifier<BackupTask> {
         completedCount: completed,
         failedCount: failed,
         skippedCount: skipped,
+        totalBytes: totalBytes,
         errors: errors,
       );
     }
