@@ -221,7 +221,7 @@ class BackupManager extends StateNotifier<BackupTask> {
     // Errors here are non-fatal — log but don't crash the backup.
     if (errors.isNotEmpty && !_cancelled) {
       try {
-        await _uploadErrorReport(errors, completed, failed);
+        await _uploadErrorReport(errors, completed, failed, skipped);
       } catch (e, st) {
         _log.warning('Failed to upload error report: $e\n$st');
       }
@@ -242,12 +242,13 @@ class BackupManager extends StateNotifier<BackupTask> {
   Future<void> reportErrors(List<String> errors) async {
     final completed = state.completedCount;
     final failed = state.failedCount;
-    await _uploadErrorReport(errors, completed, failed);
+    final skipped = state.skippedCount;
+    await _uploadErrorReport(errors, completed, failed, skipped);
   }
 
   /// Upload error report to S3 debug directory for remote diagnostics.
   /// Throws on failure — callers should handle errors.
-  Future<void> _uploadErrorReport(List<String> errors, int completed, int failed) async {
+  Future<void> _uploadErrorReport(List<String> errors, int completed, int failed, int skipped) async {
     if (!_s3.isConfigured) {
       throw StateError('S3 未配置，无法上传错误报告');
     }
