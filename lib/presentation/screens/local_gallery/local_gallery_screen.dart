@@ -303,7 +303,7 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen> {
                     label: const Text('停止'),
                   )
                 else
-                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('关闭')),
+                  TextButton(onPressed: () { manager.reset(); Navigator.pop(context); }, child: const Text('关闭')),
               ]),
               if (task.errors.isNotEmpty) ...[
                 const SizedBox(height: 12),
@@ -329,7 +329,10 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen> {
           );
         },
       ),
-    );
+    ).then((_) {
+      // Reset after dismiss so the FAB shows "备份" again.
+      ref.read(backupManagerProvider.notifier).reset();
+    });
   }
 
   Widget _stat(IconData icon, Color color, String label) {
