@@ -35,7 +35,7 @@ class UploadTracker {
         _uploaded = decoded.cast<String>().toSet();
       } else if (decoded is Map) {
         // Migration from old format: {"assetId": timestamp}
-        _uploaded = decoded.keys.toSet();
+        _uploaded = decoded.keys.cast<String>().toSet();
         _dirty = true; // Re-save in new format
         _log.info('Migrated ${_uploaded.length} records from old format');
       }

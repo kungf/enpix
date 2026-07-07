@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:photo_manager/photo_manager.dart';
@@ -165,7 +167,9 @@ class BackupManager extends StateNotifier<BackupTask> {
       final file = await asset.originFile;
       if (file == null || !file.existsSync()) {
         failed++;
-        errors.add('文件不存在: $fileName');
+        final msg = '文件不存在: $fileName';
+        _log.warning(msg);
+        errors.add(msg);
         state = state.copyWith(failedCount: failed, errors: errors);
         continue;
       }
@@ -188,10 +192,13 @@ class BackupManager extends StateNotifier<BackupTask> {
           completed++;
         } else {
           failed++;
-          errors.add(result.error ?? '上传失败');
+          final msg = result.error ?? '上传失败';
+          _log.severe('Upload failed: $fileName — $msg');
+          errors.add(msg);
         }
-      } catch (e) {
+      } catch (e, st) {
         failed++;
+        _log.severe('Upload exception: $fileName', e, st);
         errors.add('$fileName: $e');
       }
 
@@ -205,6 +212,16 @@ class BackupManager extends StateNotifier<BackupTask> {
     // Persist upload records after batch.
     await _tracker.save();
 
+    // Upload error report to S3 debug directory if there were failures.
+    // Errors here are non-fatal — log but don't crash the backup.
+    if (errors.isNotEmpty && !_cancelled) {
+      try {
+        await _uploadErrorReport(errors, completed, failed);
+      } catch (e, st) {
+        _log.warning('Failed to upload error report: $e\n$st');
+      }
+    }
+
     final finalStatus =
         _cancelled ? BackupStatus.stopped : BackupStatus.completed;
     state = state.copyWith(
@@ -214,6 +231,40 @@ class BackupManager extends StateNotifier<BackupTask> {
     );
 
     _log.info('Backup finished: $state');
+  }
+
+  /// Public entry point — called by UI "Report" button.
+  Future<void> reportErrors(List<String> errors) async {
+    final completed = state.completedCount;
+    final failed = state.failedCount;
+    await _uploadErrorReport(errors, completed, failed);
+  }
+
+  /// Upload error report to S3 debug directory for remote diagnostics.
+  /// Throws on failure — callers should handle errors.
+  Future<void> _uploadErrorReport(List<String> errors, int completed, int failed) async {
+    if (!_s3.isConfigured) {
+      throw StateError('S3 未配置，无法上传错误报告');
+    }
+    final now = DateTime.now();
+    final ts = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}'
+        '_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}'
+        '_${now.millisecond.toString().padLeft(3, '0')}';
+    final fileName = 'backup_errors_$ts.json';
+    final key = _s3.makeDebugKey(fileName);
+
+    _log.info('Uploading error report to: $key');
+
+    final report = {
+      'timestamp': now.toIso8601String(),
+      'completed': completed,
+      'failed': failed,
+      'errors': errors,
+    };
+    final data = Uint8List.fromList(utf8.encode(jsonEncode(report)));
+
+    await _s3.putObject(key, data, contentType: 'application/json');
+    _log.info('Error report uploaded successfully: $key');
   }
 
   /// Stop the current backup.

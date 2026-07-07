@@ -254,6 +254,7 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen> {
   void _showBackupProgress() {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (_) => Consumer(
         builder: (context, ref, _) {
           final task = ref.watch(backupManagerProvider);
@@ -292,6 +293,26 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen> {
                 else
                   TextButton(onPressed: () => Navigator.pop(context), child: const Text('关闭')),
               ]),
+              if (task.errors.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                const Divider(height: 1),
+                _ErrorList(
+                  errors: task.errors,
+                  onReport: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    try {
+                      await manager.reportErrors(task.errors);
+                      if (mounted) {
+                        messenger.showSnackBar(const SnackBar(content: Text('错误报告已上传')));
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        messenger.showSnackBar(SnackBar(content: Text('上传失败: $e')));
+                      }
+                    }
+                  },
+                ),
+              ],
             ]),
           );
         },
@@ -637,6 +658,90 @@ class _PhotoViewerState extends State<_PhotoViewer> {
             ]),
           ))),
       ]),
+    );
+  }
+}
+
+/// Expandable error list shown in backup progress bottom sheet.
+class _ErrorList extends StatefulWidget {
+  final List<String> errors;
+  final Future<void> Function()? onReport;
+  const _ErrorList({required this.errors, this.onReport});
+
+  @override
+  State<_ErrorList> createState() => _ErrorListState();
+}
+
+class _ErrorListState extends State<_ErrorList> {
+  bool _expanded = false;
+  bool _reporting = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        InkWell(
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                Icon(Icons.error_outline_rounded, size: 16, color: Colors.red.shade400),
+                const SizedBox(width: 8),
+                Text(
+                  '查看失败详情 (${widget.errors.length})',
+                  style: TextStyle(fontSize: 13, color: Colors.red.shade400),
+                ),
+                const Spacer(),
+                Icon(
+                  _expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                  size: 18,
+                  color: Colors.grey,
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_expanded) ...[
+          Container(
+            constraints: const BoxConstraints(maxHeight: 200),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: ListView.separated(
+              shrinkWrap: true,
+              padding: const EdgeInsets.all(12),
+              itemCount: widget.errors.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 4),
+              itemBuilder: (_, i) => Text(
+                widget.errors[i],
+                style: TextStyle(fontSize: 12, color: Colors.red.shade700),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: _reporting
+                  ? null
+                  : () async {
+                      setState(() => _reporting = true);
+                      try {
+                        await widget.onReport?.call();
+                      } finally {
+                        if (mounted) setState(() => _reporting = false);
+                      }
+                    },
+              icon: _reporting
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.bug_report_outlined, size: 16),
+              label: Text(_reporting ? '上传中...' : 'Report'),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

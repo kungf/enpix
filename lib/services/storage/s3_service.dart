@@ -54,6 +54,17 @@ class S3Service {
     return generateThumbKey(_kekFingerprint ?? 'shared', fileId, createdAt, deviceId: _deviceId);
   }
 
+  /// Generate S3 key for debug/diagnostic files.
+  static String generateDebugKey(String fingerprint, String fileName, {String? deviceId}) {
+    final prefix = fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared';
+    final device = deviceId ?? 'default';
+    return '$prefix/$device/debug/$fileName';
+  }
+
+  String makeDebugKey(String fileName) {
+    return generateDebugKey(_kekFingerprint ?? 'shared', fileName, deviceId: _deviceId);
+  }
+
   // ── HTTP operations ──
 
   /// Test S3 connection and required permissions (HEAD, LIST, PUT, GET).
