@@ -163,9 +163,21 @@ class BackupManager extends StateNotifier<BackupTask> {
       final fileName = asset.title ?? 'photo';
       state = state.copyWith(currentFileName: fileName);
 
-      // Get file
-      final file = await asset.originFile;
-      if (file == null || !file.existsSync()) {
+      // Read bytes directly via photo_manager native API — avoids
+      // temporary files and the TOCTOU race they introduce on iOS.
+      final Uint8List? plaintext;
+      try {
+        plaintext = await asset.originBytes;
+      } catch (e, st) {
+        failed++;
+        final msg = '读取文件失败: $fileName — $e';
+        _log.severe('File read failed: $fileName', e, st);
+        errors.add(msg);
+        state = state.copyWith(failedCount: failed, errors: errors);
+        continue;
+      }
+
+      if (plaintext == null) {
         failed++;
         final msg = '文件不存在: $fileName';
         _log.warning(msg);
@@ -177,7 +189,7 @@ class BackupManager extends StateNotifier<BackupTask> {
       // Upload
       try {
         final result = await _uploader.upload(
-          localPath: file.path,
+          plaintext: plaintext,
           fileName: fileName,
           mimeType: asset.mimeType ?? 'image/jpeg',
           createdAt: asset.createDateTime,
