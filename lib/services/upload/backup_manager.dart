@@ -154,7 +154,7 @@ class BackupManager extends StateNotifier<BackupTask> {
 
     _log.info('Backup started: ${pending.length} pending, $totalSkipped total already uploaded');
 
-    int completed = 0, failed = 0;
+    int completed = 0, failed = 0, skipped = 0;
     final errors = <String>[];
 
     for (final asset in pending) {
@@ -186,10 +186,14 @@ class BackupManager extends StateNotifier<BackupTask> {
 
         if (result.success) {
           await _tracker.markUploaded(asset.id);
-          if (result.thumbData != null) {
-            await _cache.save(asset.id, result.thumbData!);
+          if (result.remoteExists) {
+            skipped++;
+          } else {
+            if (result.thumbData != null) {
+              await _cache.save(asset.id, result.thumbData!);
+            }
+            completed++;
           }
-          completed++;
         } else {
           failed++;
           final msg = result.error ?? '上传失败';
@@ -205,6 +209,7 @@ class BackupManager extends StateNotifier<BackupTask> {
       state = state.copyWith(
         completedCount: completed,
         failedCount: failed,
+        skippedCount: skipped,
         errors: errors,
       );
     }
@@ -259,6 +264,7 @@ class BackupManager extends StateNotifier<BackupTask> {
       'timestamp': now.toIso8601String(),
       'completed': completed,
       'failed': failed,
+      'skipped': skipped,
       'errors': errors,
     };
     final data = Uint8List.fromList(utf8.encode(jsonEncode(report)));

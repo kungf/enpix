@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 import 'package:logging/logging.dart';
-import 'package:uuid/uuid.dart';
 import '../crypto/crypto_service.dart';
 import '../crypto/credential_service.dart';
 import '../storage/s3_service.dart';
@@ -20,6 +19,9 @@ class UploadService {
   /// Full upload pipeline: encrypt file → upload to S3 with metadata.
   /// Also generates, encrypts, and uploads a thumbnail.
   /// Returns [UploadResult] with the decrypted thumbnail JPEG for local caching.
+  ///
+  /// Uses content hash as the S3 fileId so the key is predictable — a HEAD
+  /// check before encryption skips files that already exist on the remote.
   Future<UploadResult> upload({
     required String localPath,
     required String fileName,
@@ -34,18 +36,31 @@ class UploadService {
     if (!file.existsSync()) return UploadResult.error('File not found: $localPath');
     final plaintext = await file.readAsBytes();
 
-    // 2. Hash original
+    // 2. Hash original → use as fileId (content-addressable key).
     final hash = await _crypto.hash(plaintext);
     final hashHex = CryptoService.b64Encode(hash);
+    final fileId = hashHex;
 
-    // 3. Generate DEK + nonce
+    // 3. Build S3 key and check remote existence.
+    final key = _s3.makeKey(fileId, createdAt);
+    try {
+      if (await _s3.objectExists(key)) {
+        _log.info('Remote exists, skipped: $key');
+        return UploadResult.remoteExists(key, hashHex);
+      }
+    } on Exception catch (e) {
+      // HEAD failed for a reason other than 404/403 — non-fatal, just upload.
+      _log.warning('Remote check failed (non-fatal, will upload): $e');
+    }
+
+    // 4. Generate DEK + nonce
     final dek = _crypto.generateDek();
     final nonce = _crypto.generateNonce();
 
-    // 4. Encrypt file
+    // 5. Encrypt file
     final encrypted = await _crypto.encrypt(plaintext, dek, nonce);
 
-    // 5. Generate thumbnail
+    // 6. Generate thumbnail
     Uint8List? thumbJpeg;
     try {
       final decoded = img.decodeImage(plaintext);
@@ -63,7 +78,7 @@ class UploadService {
       _log.warning('Thumbnail generation failed (non-fatal): $e');
     }
 
-    // 6. Wrap DEK with KEK
+    // 7. Wrap DEK with KEK
     Uint8List wrappedDek;
     try {
       wrappedDek = await _crypto.wrapKey(dek, kek);
@@ -71,12 +86,10 @@ class UploadService {
       _crypto.secureFree(dek);
     }
 
-    // 7. Build S3 keys (uses instance _deviceId via makeKey/makeThumbKey)
-    final fileId = const Uuid().v7();
-    final key = _s3.makeKey(fileId, createdAt);
+    // 8. Build thumb key
     final thumbKey = _s3.makeThumbKey(fileId, createdAt);
 
-    // 8. Upload original to S3
+    // 9. Upload original to S3
     try {
       _log.info('PUT to S3: $key (${encrypted.length} bytes)');
       await _s3.putObject(key, encrypted, metadata: {
@@ -90,7 +103,7 @@ class UploadService {
       return UploadResult.error('Upload failed: $e');
     }
 
-    // 9. Encrypt and upload thumbnail to S3
+    // 10. Encrypt and upload thumbnail to S3
     if (thumbJpeg != null) {
       try {
         final thumbNonce = _crypto.generateNonce();
@@ -124,11 +137,23 @@ class UploadResult {
   final int? size;
   final Uint8List? thumbData;
   final String? error;
+  final bool remoteExists;
 
-  UploadResult._({required this.success, this.s3Key, this.fileHash, this.size, this.thumbData, this.error});
+  UploadResult._({
+    required this.success,
+    this.s3Key,
+    this.fileHash,
+    this.size,
+    this.thumbData,
+    this.error,
+    this.remoteExists = false,
+  });
 
   factory UploadResult.success(String key, String hash, int size, {Uint8List? thumbData}) =>
       UploadResult._(success: true, s3Key: key, fileHash: hash, size: size, thumbData: thumbData);
+
+  factory UploadResult.remoteExists(String key, String hash) =>
+      UploadResult._(success: true, s3Key: key, fileHash: hash, remoteExists: true);
 
   factory UploadResult.error(String msg) =>
       UploadResult._(success: false, error: msg);

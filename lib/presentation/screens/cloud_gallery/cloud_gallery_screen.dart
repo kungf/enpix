@@ -141,7 +141,7 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
         objects = await s3.listObjects('$fpPrefix/$_prefix');
       }
 
-      // Sort by key descending (newest first, UUIDv7 is time-ordered)
+      // Sort by key descending (date in path ensures day-level ordering)
       objects.sort((a, b) => b.key.compareTo(a.key));
 
       // Build sections

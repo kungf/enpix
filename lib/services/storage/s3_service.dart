@@ -171,7 +171,28 @@ class S3Service {
       final meta = <String, String>{};
       r.headers.forEach((n, v) { if (n.startsWith('x-amz-meta-')) meta[n] = v.join(','); });
       return meta;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        throw StorageException(message: 'Object not found: $key', cause: e);
+      }
+      throw StorageException(message: 'HEAD failed: $key — $e', cause: e);
     } catch (e) {
+      throw StorageException(message: 'HEAD failed: $key — $e', cause: e);
+    }
+  }
+
+  /// Check if an object exists in S3.
+  /// Returns `true` on 200, `false` on 404/403 (some S3 servers return 403
+  /// instead of 404 to avoid leaking object existence), throws on other errors.
+  Future<bool> objectExists(String key) async {
+    _ensureConfigured();
+    try {
+      final path = '/${_config!.bucketName}/$key';
+      await _dio.head(path, options: _signedOptions('HEAD', path));
+      return true;
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      if (status == 404 || status == 403) return false;
       throw StorageException(message: 'HEAD failed: $key — $e', cause: e);
     }
   }
