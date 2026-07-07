@@ -186,7 +186,10 @@ class BackupManager extends StateNotifier<BackupTask> {
         continue;
       }
 
-      // Upload
+      if (_cancelled) break;
+
+      // Upload — passes cancellation flag so the pipeline can abort
+      // mid-flight instead of running to completion.
       try {
         final result = await _uploader.upload(
           plaintext: plaintext,
@@ -194,6 +197,7 @@ class BackupManager extends StateNotifier<BackupTask> {
           mimeType: asset.mimeType ?? 'image/jpeg',
           createdAt: asset.createDateTime,
           kek: _credService.sessionKek!,
+          isCancelled: () => _cancelled,
         );
 
         if (result.success) {
@@ -212,6 +216,9 @@ class BackupManager extends StateNotifier<BackupTask> {
           _log.severe('Upload failed: $fileName — $msg');
           errors.add(msg);
         }
+      } on UploadCancelledException {
+        _log.info('Upload cancelled: $fileName');
+        break;
       } catch (e, st) {
         failed++;
         _log.severe('Upload exception: $fileName', e, st);

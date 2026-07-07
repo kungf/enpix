@@ -24,12 +24,16 @@ class UploadService {
   ///
   /// [plaintext] is the raw photo bytes — callers must read the file before
   /// calling this method to avoid TOCTOU races on temporary photo-library paths.
+  ///
+  /// [isCancelled] is checked between major steps so a long upload can be
+  /// aborted mid-flight rather than running to completion.
   Future<UploadResult> upload({
     required Uint8List plaintext,
     required String fileName,
     required String mimeType,
     required DateTime createdAt,
     required Uint8List kek,
+    bool Function() isCancelled = _neverCancelled,
   }) async {
     _log.info('Uploading: $fileName (${plaintext.length} bytes)');
 
@@ -50,12 +54,16 @@ class UploadService {
       _log.warning('Remote check failed (non-fatal, will upload): $e');
     }
 
+    if (isCancelled()) throw const UploadCancelledException();
+
     // 3. Generate DEK + nonce
     final dek = _crypto.generateDek();
     final nonce = _crypto.generateNonce();
 
     // 4. Encrypt file
     final encrypted = await _crypto.encrypt(plaintext, dek, nonce);
+
+    if (isCancelled()) throw const UploadCancelledException();
 
     // 5. Generate thumbnail
     Uint8List? thumbJpeg;
@@ -75,6 +83,8 @@ class UploadService {
       _log.warning('Thumbnail generation failed (non-fatal): $e');
     }
 
+    if (isCancelled()) throw const UploadCancelledException();
+
     // 6. Wrap DEK with KEK
     Uint8List wrappedDek;
     try {
@@ -85,6 +95,8 @@ class UploadService {
 
     // 7. Build thumb key
     final thumbKey = _s3.makeThumbKey(fileId, createdAt);
+
+    if (isCancelled()) throw const UploadCancelledException();
 
     // 8. Upload original to S3
     try {
@@ -99,6 +111,8 @@ class UploadService {
       _log.severe('S3 upload failed: $e');
       return UploadResult.error('Upload failed: $e');
     }
+
+    if (isCancelled()) throw const UploadCancelledException();
 
     // 9. Encrypt and upload thumbnail to S3
     if (thumbJpeg != null) {
@@ -125,6 +139,8 @@ class UploadService {
     _log.info('Upload complete: $key');
     return UploadResult.success(key, hashHex, encrypted.length, thumbData: thumbJpeg);
   }
+
+  static bool _neverCancelled() => false;
 }
 
 class UploadResult {
@@ -154,4 +170,11 @@ class UploadResult {
 
   factory UploadResult.error(String msg) =>
       UploadResult._(success: false, error: msg);
+}
+
+/// Thrown by [UploadService.upload] when the caller's [isCancelled] callback
+/// returns true.  Catch this in backup loops to abort the current upload
+/// without marking it as failed.
+class UploadCancelledException implements Exception {
+  const UploadCancelledException();
 }
