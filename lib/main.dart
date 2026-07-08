@@ -11,7 +11,9 @@ void main() {
   // Wire up logging so _log.info/warning/severe print to console AND terminal.
   Logger.root.level = Level.INFO;
   Logger.root.onRecord.listen((record) {
-    final msg = '[${record.loggerName}] ${record.level.name}: ${record.message}';
+    final errorStr = record.error != null ? ' | error=${record.error}' : '';
+    final stackStr = record.stackTrace != null ? '\n${record.stackTrace}' : '';
+    final msg = '[${record.loggerName}] ${record.level.name}: ${record.message}$errorStr$stackStr';
     debugPrint(msg);
     developer.log(
       record.message,

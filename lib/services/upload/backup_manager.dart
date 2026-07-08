@@ -160,7 +160,9 @@ class BackupManager extends StateNotifier<BackupTask> {
     for (final asset in pending) {
       if (_cancelled) break;
 
-      final fileName = asset.title ?? 'photo';
+      // Build a stable label — asset.title can be empty on iOS.
+      final label = asset.title?.isNotEmpty == true ? asset.title! : asset.id;
+      final fileName = label.length > 40 ? '${label.substring(0, 40)}...' : label;
       state = state.copyWith(currentFileName: fileName);
 
       // Check iCloud status — if the photo is in the cloud, originBytes
@@ -217,26 +219,32 @@ class BackupManager extends StateNotifier<BackupTask> {
             skipped++;
             uploadKind = 'skip';
           } else {
-            if (result.thumbData != null) {
-              await _cache.save(asset.id, result.thumbData!);
-            }
             completed++;
             totalBytes += result.size ?? 0;
             uploadKind = 'ok';
           }
           _log.info('Upload $uploadKind: $fileName ${plaintext.length}B read=${readMs}ms upload=${uploadMs}ms');
+
+          // Persist thumbnail — failure is non-fatal, don't count as upload error.
+          if (!result.remoteExists && result.thumbData != null) {
+            try {
+              await _cache.save(asset.id, result.thumbData!);
+            } catch (e, st) {
+              _log.warning('Thumbnail cache save failed: $fileName — $e', e, st);
+            }
+          }
         } else {
           failed++;
           final msg = result.error ?? '上传失败';
           _log.severe('Upload failed: $fileName — $msg');
-          errors.add(msg);
+          errors.add('$fileName: $msg');
         }
       } on UploadCancelledException {
         _log.info('Upload cancelled: $fileName');
         break;
       } catch (e, st) {
         failed++;
-        _log.severe('Upload exception: $fileName', e, st);
+        _log.severe('Upload exception: $fileName — $e', e, st);
         errors.add('$fileName: $e');
       }
 
