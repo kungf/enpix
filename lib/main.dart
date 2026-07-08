@@ -8,9 +8,11 @@ import 'app.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Wire up logging so _log.info/warning/severe actually print to console.
+  // Wire up logging so _log.info/warning/severe print to console AND terminal.
   Logger.root.level = Level.INFO;
   Logger.root.onRecord.listen((record) {
+    final msg = '[${record.loggerName}] ${record.level.name}: ${record.message}';
+    debugPrint(msg);
     developer.log(
       record.message,
       name: record.loggerName,
