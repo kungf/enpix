@@ -22,7 +22,7 @@ class ThumbnailCache {
     return _cacheDir!;
   }
 
-  String _fileName(String assetId) => '$assetId.jpg';
+  String _fileName(String assetId) => '${assetId.replaceAll('/', '_')}.jpg';
 
   /// Save a decrypted thumbnail JPEG to local cache.
   Future<void> save(String assetId, Uint8List jpegData) async {
