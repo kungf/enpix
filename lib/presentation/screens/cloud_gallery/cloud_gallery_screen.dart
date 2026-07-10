@@ -1,13 +1,9 @@
-import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../../../services/crypto/credential_service.dart';
 import '../../../services/crypto/crypto_service.dart';
-import '../../../services/device_service.dart';
 import '../../../services/storage/s3_service.dart';
-import '../../../services/cache/thumbnail_cache.dart';
 import '../../../services/providers.dart';
 import '../../../domain/entities/storage_config.dart';
 
@@ -29,8 +25,11 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
   bool _error = false;
   bool _needPassphrase = false;
   String _errorMsg = '';
+  List<_CloudDaySection> _allSections = [];
   List<_CloudDaySection> _sections = [];
   String? _prefix;
+  int _visibleDays = 30;
+  final ScrollController _scrollCtrl = ScrollController();
 
   // Device selector state
   Map<String, DeviceInfo> _devices = {};
@@ -40,7 +39,37 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
   @override
   void initState() {
     super.initState();
+    _scrollCtrl.addListener(_onScroll);
     _init();
+  }
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollCtrl.position.pixels >=
+        _scrollCtrl.position.maxScrollExtent - 200) {
+      _loadMore();
+    }
+  }
+
+  void _loadMore() {
+    final current = _sections.length;
+    final total = _allSections.length;
+    if (current >= total) return;
+    final next = (current + 30).clamp(0, total);
+    if (next == current) return;
+    setState(() {
+      _visibleDays = next;
+      _updateVisibleSections();
+    });
+  }
+
+  void _updateVisibleSections() {
+    _sections = _allSections.take(_visibleDays).toList();
   }
 
   Future<void> _init() async {
@@ -63,12 +92,14 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
       _loading = true;
       _error = false;
       _needPassphrase = false;
+      _visibleDays = 30;
+      _allSections = [];
+      _sections = [];
     });
 
     try {
       final credService = ref.read(credentialServiceProvider);
       final s3 = ref.read(s3ServiceProvider);
-      final cache = ref.read(thumbnailCacheProvider);
 
       if (!s3.isConfigured) {
         // Step 1: Check if encryption key is set up.
@@ -156,12 +187,10 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
         final date = _extractDateFromKey(obj.key);
         final dateKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
-        final cached = await cache.load(fileId);
         groups.putIfAbsent(dateKey, () => []);
         groups[dateKey]!.add(_CloudThumb(
           fileId: fileId,
           s3Key: obj.key,
-          cachedData: cached,
           createdAt: date,
           deviceId: deviceId,
         ));
@@ -171,7 +200,7 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
 
       if (!mounted) return;
       setState(() {
-        _sections = sortedKeys.map((key) {
+        _allSections = sortedKeys.map((key) {
           final date = DateTime.parse(key);
           return _CloudDaySection(
             dateKey: key,
@@ -179,6 +208,7 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
             thumbs: groups[key]!,
           );
         }).toList();
+        _updateVisibleSections();
         _loading = false;
       });
     } catch (e) {
@@ -240,8 +270,6 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
 
   /// Load a thumbnail — from cache or download + decrypt from S3.
   Future<Uint8List?> _loadThumb(_CloudThumb thumb) async {
-    if (thumb.cachedData != null) return thumb.cachedData;
-
     try {
       final s3 = ref.read(s3ServiceProvider);
       final crypto = ref.read(cryptoServiceProvider);
@@ -464,6 +492,7 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
     return RefreshIndicator(
       onRefresh: _loadCloudThumbs,
       child: ListView.builder(
+        controller: _scrollCtrl,
         padding: const EdgeInsets.only(bottom: 80),
         itemCount: _sections.length,
         itemBuilder: (context, sectionIndex) {
@@ -484,14 +513,12 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
 class _CloudThumb {
   final String fileId;
   final String s3Key;
-  final Uint8List? cachedData;
   final DateTime createdAt;
   final String deviceId;
 
   const _CloudThumb({
     required this.fileId,
     required this.s3Key,
-    this.cachedData,
     required this.createdAt,
     required this.deviceId,
   });
