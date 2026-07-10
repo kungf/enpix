@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:logging/logging.dart';
 import 'package:xml/xml.dart';
 import '../../core/errors/storage_exception.dart';
@@ -9,7 +11,19 @@ import '../../domain/entities/storage_config.dart';
 
 class S3Service {
   final Logger _log = Logger('S3Service');
-  final Dio _dio = Dio(BaseOptions(connectTimeout: const Duration(seconds: 30), receiveTimeout: const Duration(seconds: 300)));
+  final Dio _dio;
+
+  S3Service() : _dio = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 30),
+    receiveTimeout: const Duration(seconds: 300),
+  )) {
+    // Reuse TCP connections — avoids handshake per request during bulk upload.
+    (_dio.httpClientAdapter as DefaultHttpClientAdapter).onHttpClientCreate =
+        (client) {
+      client.idleTimeout = const Duration(seconds: 30);
+      client.autoUncompress = false;
+    };
+  }
   StorageConfig? _config;
   String? _kekFingerprint;
   String? _deviceId;

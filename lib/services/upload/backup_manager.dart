@@ -157,95 +157,39 @@ class BackupManager extends StateNotifier<BackupTask> {
     int completed = 0, failed = 0, skipped = 0, totalBytes = 0;
     final errors = <String>[];
 
-    for (final asset in pending) {
-      if (_cancelled) break;
+    // 3 concurrent uploads — significant throughput gain over serial.
+    const concurrency = 3;
+    var i = 0;
+    while (i < pending.length && !_cancelled) {
+      final batchEnd = (i + concurrency).clamp(0, pending.length);
+      final batch = pending.sublist(i, batchEnd);
+      final results = await Future.wait(
+        batch.map((asset) => _processAsset(asset)),
+      );
 
-      // Build a stable label — asset.title can be empty on iOS.
-      final label = asset.title?.isNotEmpty == true ? asset.title! : asset.id;
-      final fileName = label.length > 40 ? '${label.substring(0, 40)}...' : label;
-      state = state.copyWith(currentFileName: fileName);
-
-      // Check iCloud status — if the photo is in the cloud, originBytes
-      // will trigger a download, which can take many seconds.
-      if (!await asset.isLocallyAvailable()) {
-        _log.warning('iCloud photo, downloading: $fileName');
-      }
-
-      // Read bytes directly via photo_manager native API — avoids
-      // temporary files and the TOCTOU race they introduce on iOS.
-      final Uint8List? plaintext;
-      final tRead = DateTime.now();
-      try {
-        plaintext = await asset.originBytes;
-      } catch (e, st) {
-        failed++;
-        final msg = '读取文件失败: $fileName — $e';
-        _log.severe('File read failed: $fileName', e, st);
-        errors.add(msg);
-        state = state.copyWith(failedCount: failed, errors: errors);
-        continue;
-      }
-      final readMs = DateTime.now().difference(tRead).inMilliseconds;
-
-      if (plaintext == null) {
-        failed++;
-        final msg = '文件不存在: $fileName';
-        _log.warning(msg);
-        errors.add(msg);
-        state = state.copyWith(failedCount: failed, errors: errors);
-        continue;
-      }
-
-      if (_cancelled) break;
-
-      // Upload — passes cancellation flag so the pipeline can abort
-      // mid-flight instead of running to completion.
-      final tUpload = DateTime.now();
-      late final String uploadKind;
-      try {
-        final result = await _uploader.upload(
-          plaintext: plaintext,
-          fileName: fileName,
-          mimeType: asset.mimeType ?? 'image/jpeg',
-          createdAt: asset.createDateTime,
-          kek: _credService.sessionKek!,
-          isCancelled: () => _cancelled,
-        );
-
-        final uploadMs = DateTime.now().difference(tUpload).inMilliseconds;
-        if (result.success) {
-          await _tracker.markUploaded(asset.id);
-          if (result.remoteExists) {
+      for (final r in results) {
+        if (r == null) break; // cancelled
+        if (r.success) {
+          await _tracker.markUploaded(r.assetId);
+          if (r.remoteExists) {
             skipped++;
-            uploadKind = 'skip';
           } else {
             completed++;
-            totalBytes += result.size ?? 0;
-            uploadKind = 'ok';
-          }
-          _log.info('Upload $uploadKind: $fileName ${plaintext.length}B read=${readMs}ms upload=${uploadMs}ms');
-
-          // Persist thumbnail — failure is non-fatal, don't count as upload error.
-          if (!result.remoteExists && result.thumbData != null) {
-            try {
-              await _cache.save(asset.id, result.thumbData!);
-            } catch (e, st) {
-              _log.warning('Thumbnail cache save failed: $fileName — $e', e, st);
+            totalBytes += r.size;
+            // Persist thumbnail — failure is non-fatal.
+            if (r.thumbData != null) {
+              try {
+                await _cache.save(r.assetId, r.thumbData!);
+              } catch (e, st) {
+                _log.warning('Thumbnail cache save failed: ${r.fileName} — $e', e, st);
+              }
             }
           }
         } else {
           failed++;
-          final msg = result.error ?? '上传失败';
-          _log.severe('Upload failed: $fileName — $msg');
-          errors.add('$fileName: $msg');
+          final err = r.error;
+          if (err != null) errors.add(err);
         }
-      } on UploadCancelledException {
-        _log.info('Upload cancelled: $fileName');
-        break;
-      } catch (e, st) {
-        failed++;
-        _log.severe('Upload exception: $fileName — $e', e, st);
-        errors.add('$fileName: $e');
       }
 
       state = state.copyWith(
@@ -255,6 +199,8 @@ class BackupManager extends StateNotifier<BackupTask> {
         totalBytes: totalBytes,
         errors: errors,
       );
+
+      i += concurrency;
     }
 
     // Persist upload records after batch.
@@ -329,4 +275,112 @@ class BackupManager extends StateNotifier<BackupTask> {
     if (state.isRunning) return;
     state = BackupTask(startedAt: DateTime.now());
   }
+
+  /// Process one asset: read → upload → return result.
+  /// Designed to run concurrently via [Future.wait] for throughput.
+  Future<_AssetResult?> _processAsset(AssetEntity asset) async {
+    if (_cancelled) return null;
+
+    final label = asset.title?.isNotEmpty == true ? asset.title! : asset.id;
+    final fileName = label.length > 40 ? '${label.substring(0, 40)}...' : label;
+    state = state.copyWith(currentFileName: fileName);
+
+    // Check iCloud status before reading.
+    if (!await asset.isLocallyAvailable()) {
+      _log.warning('iCloud photo, downloading: $fileName');
+    }
+
+    // Read bytes via native API — no temp file.
+    final Uint8List? plaintext;
+    final tRead = DateTime.now();
+    try {
+      plaintext = await asset.originBytes;
+    } catch (e, st) {
+      _log.severe('File read failed: $fileName', e, st);
+      return _AssetResult(
+        assetId: asset.id,
+        fileName: fileName,
+        success: false,
+        error: '读取文件失败: $fileName — $e',
+      );
+    }
+    final readMs = DateTime.now().difference(tRead).inMilliseconds;
+
+    if (plaintext == null) {
+      _log.warning('File missing: $fileName');
+      return _AssetResult(
+        assetId: asset.id,
+        fileName: fileName,
+        success: false,
+        error: '文件不存在: $fileName',
+      );
+    }
+
+    if (_cancelled) return null;
+
+    // Upload — passes cancellation flag for mid-flight abort.
+    final tUpload = DateTime.now();
+    try {
+      final result = await _uploader.upload(
+        plaintext: plaintext,
+        fileName: fileName,
+        mimeType: asset.mimeType ?? 'image/jpeg',
+        createdAt: asset.createDateTime,
+        kek: _credService.sessionKek!,
+        isCancelled: () => _cancelled,
+      );
+
+      final uploadMs = DateTime.now().difference(tUpload).inMilliseconds;
+      if (result.success) {
+        _log.info('Upload ${result.remoteExists ? "skip" : "ok"}: $fileName '
+            '${plaintext.length}B read=${readMs}ms upload=${uploadMs}ms');
+        return _AssetResult(
+          assetId: asset.id,
+          fileName: fileName,
+          success: true,
+          remoteExists: result.remoteExists,
+          size: result.size ?? 0,
+          thumbData: result.thumbData,
+        );
+      } else {
+        return _AssetResult(
+          assetId: asset.id,
+          fileName: fileName,
+          success: false,
+          error: result.error ?? '上传失败: $fileName',
+        );
+      }
+    } on UploadCancelledException {
+      _log.info('Upload cancelled: $fileName');
+      return null;
+    } catch (e, st) {
+      _log.severe('Upload exception: $fileName — $e', e, st);
+      return _AssetResult(
+        assetId: asset.id,
+        fileName: fileName,
+        success: false,
+        error: '$fileName: $e',
+      );
+    }
+  }
+}
+
+class _AssetResult {
+  final String assetId;
+  final String fileName;
+  final bool success;
+  final bool remoteExists;
+  final int size;
+  final Uint8List? thumbData;
+  final String? error;
+
+  const _AssetResult({
+    required this.assetId,
+    required this.fileName,
+    required this.success,
+    this.remoteExists = false,
+    this.size = 0,
+    this.thumbData,
+    this.error,
+  });
 }

@@ -437,6 +437,7 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
     }
     if (_error) {
       return Center(
+        child: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(
@@ -471,6 +472,7 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
                 FilledButton(onPressed: _loadCloudThumbs, child: const Text('重试')),
             ],
           ),
+        ),
         ),
       );
     }
