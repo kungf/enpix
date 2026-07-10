@@ -7,7 +7,7 @@ class AppConstants {
   static const int defaultChunkSizeBytes = 8 * 1024 * 1024;
   static const int thumbnailMaxWidth = 512;
   static const int thumbnailMaxHeight = 512;
-  static const int thumbnailQuality = 75;
+  static const int thumbnailQuality = 85;
   static const double defaultCacheMaxSizeGb = 2.0;
   static const int s3MultipartMinSizeBytes = 16 * 1024 * 1024;
   static const int s3MultipartPartSizeBytes = 8 * 1024 * 1024;

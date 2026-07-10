@@ -74,7 +74,7 @@ class UploadService {
           decoded,
           width: AppConstants.thumbnailMaxWidth,
           height: AppConstants.thumbnailMaxHeight,
-          interpolation: img.Interpolation.linear,
+          interpolation: img.Interpolation.cubic,
         );
         thumbJpeg = Uint8List.fromList(img.encodeJpg(thumb, quality: AppConstants.thumbnailQuality));
         _log.fine('Thumbnail generated: ${thumbJpeg.length} bytes');
