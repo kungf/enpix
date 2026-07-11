@@ -290,9 +290,8 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen> {
                 const SizedBox(height: 12),
               ],
               Row(children: [
-                _stat(Icons.check_rounded, Colors.green, '${task.completedCount} 成功'),
-                const SizedBox(width: 16),
-                _stat(Icons.error_outline_rounded, Colors.red, '${task.failedCount} 失败'),
+                if (task.failedCount > 0)
+                  _stat(Icons.error_outline_rounded, Colors.red, '${task.failedCount} 失败'),
                 const Spacer(),
                 TextButton.icon(
                   onPressed: () { manager.stop(); Navigator.pop(context); },
