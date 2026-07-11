@@ -292,18 +292,13 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen> {
               Row(children: [
                 _stat(Icons.check_rounded, Colors.green, '${task.completedCount} 成功'),
                 const SizedBox(width: 16),
-                _stat(Icons.skip_next_rounded, Colors.orange, '${task.skippedCount} 跳过'),
-                const SizedBox(width: 16),
                 _stat(Icons.error_outline_rounded, Colors.red, '${task.failedCount} 失败'),
                 const Spacer(),
-                if (task.isRunning)
-                  TextButton.icon(
-                    onPressed: () { manager.stop(); Navigator.pop(context); },
-                    icon: const Icon(Icons.stop_rounded, size: 18),
-                    label: const Text('停止'),
-                  )
-                else
-                  TextButton(onPressed: () { manager.reset(); Navigator.pop(context); }, child: const Text('关闭')),
+                TextButton.icon(
+                  onPressed: () { manager.stop(); Navigator.pop(context); },
+                  icon: const Icon(Icons.stop_rounded, size: 18),
+                  label: const Text('停止'),
+                ),
               ]),
               if (task.errors.isNotEmpty) ...[
                 const SizedBox(height: 12),
@@ -356,18 +351,12 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen> {
     }
 
     if (task.isDone) {
-      return FloatingActionButton.extended(
-        onPressed: _showBackupProgress,
-        backgroundColor: task.failedCount > 0 ? Colors.orange : Colors.green,
-        icon: Icon(
-          task.failedCount > 0 ? Icons.warning_rounded : Icons.check_rounded,
-          color: Colors.white,
-        ),
-        label: Text(
-          task.failedCount > 0 ? '${task.failedCount} 失败' : '完成',
-          style: const TextStyle(color: Colors.white),
-        ),
-      );
+      // Auto-reset to idle — user already saw results via the sheet
+      // or the backup was stopped directly.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(backupManagerProvider.notifier).reset();
+      });
+      // Fall through to show the idle "备份" button.
     }
 
     return GestureDetector(

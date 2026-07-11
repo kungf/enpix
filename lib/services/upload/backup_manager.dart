@@ -216,13 +216,17 @@ class BackupManager extends StateNotifier<BackupTask> {
       }
     }
 
-    final finalStatus =
-        _cancelled ? BackupStatus.stopped : BackupStatus.completed;
-    state = state.copyWith(
-      status: finalStatus,
-      completedAt: DateTime.now(),
-      currentFileName: null,
-    );
+    // Only update state if a new backup hasn't already started.
+    if (state.status == BackupStatus.running ||
+        state.status == BackupStatus.stopped) {
+      final finalStatus =
+          _cancelled ? BackupStatus.stopped : BackupStatus.completed;
+      state = state.copyWith(
+        status: finalStatus,
+        completedAt: DateTime.now(),
+        currentFileName: null,
+      );
+    }
 
     _log.info('Backup finished: $state');
   }
@@ -267,6 +271,11 @@ class BackupManager extends StateNotifier<BackupTask> {
   void stop() {
     if (!state.isRunning) return;
     _cancelled = true;
+    state = state.copyWith(
+      status: BackupStatus.stopped,
+      completedAt: DateTime.now(),
+      currentFileName: null,
+    );
     _log.info('Backup stopped by user');
   }
 
