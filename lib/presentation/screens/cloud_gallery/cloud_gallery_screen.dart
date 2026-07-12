@@ -1,5 +1,7 @@
+import 'dart:developer' as developer;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:see_photo/core/theme/app_colors.dart';
@@ -27,8 +29,7 @@ class CloudGalleryScreen extends ConsumerStatefulWidget {
   const CloudGalleryScreen({super.key, this.onNavigateToSettings});
 
   @override
-  ConsumerState<CloudGalleryScreen> createState() =>
-      _CloudGalleryScreenState();
+  ConsumerState<CloudGalleryScreen> createState() => _CloudGalleryScreenState();
 }
 
 class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
@@ -112,32 +113,51 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
 
       if (!s3.isConfigured) {
         if (!credService.isSessionActive) {
-          setState(() { _loading = false; _error = true; _needPassphrase = true; });
+          setState(() {
+            _loading = false;
+            _error = true;
+            _needPassphrase = true;
+          });
           return;
         }
         final endpointUrl = await credService.getS3Endpoint() ?? '';
         final bucketName = await credService.getS3Bucket() ?? '';
         if (endpointUrl.isEmpty || bucketName.isEmpty) {
-          setState(() { _loading = false; _error = true; _errorMsg = '请先在设置中配置 S3 Endpoint 和 Bucket'; });
+          setState(() {
+            _loading = false;
+            _error = true;
+            _errorMsg = '请先在设置中配置 S3 Endpoint 和 Bucket';
+          });
           return;
         }
         final s3Creds = await credService.loadS3Credentials();
         if (s3Creds == null) {
-          setState(() { _loading = false; _error = true; _errorMsg = '请先在设置中配置 Access Key 和 Secret Key'; });
+          setState(() {
+            _loading = false;
+            _error = true;
+            _errorMsg = '请先在设置中配置 Access Key 和 Secret Key';
+          });
           return;
         }
         final region = await credService.getS3Region() ?? 'default';
         final fingerprint = await credService.getKekFingerprint();
         final deviceId = await ref.read(deviceServiceProvider).getDeviceId();
         s3.configure(
-          StorageConfig(endpointUrl: endpointUrl, bucketName: bucketName, region: region,
-              accessKey: s3Creds.accessKey, secretKey: s3Creds.secretKey, updatedAt: DateTime.now().millisecondsSinceEpoch),
-          kekFingerprint: fingerprint, deviceId: deviceId,
+          StorageConfig(
+              endpointUrl: endpointUrl,
+              bucketName: bucketName,
+              region: region,
+              accessKey: s3Creds.accessKey,
+              secretKey: s3Creds.secretKey,
+              updatedAt: DateTime.now().millisecondsSinceEpoch),
+          kekFingerprint: fingerprint,
+          deviceId: deviceId,
         );
       }
 
       final fingerprint = await credService.getKekFingerprint() ?? 'shared';
-      final fpPrefix = fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared';
+      final fpPrefix =
+          fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared';
 
       final devices = await s3.listDevices();
       _devices = devices;
@@ -159,9 +179,14 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
         if (fileId == null) continue;
         final deviceId = _extractDeviceId(obj.key);
         final date = _extractDateFromKey(obj.key);
-        final dateKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+        final dateKey =
+            '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
         groups.putIfAbsent(dateKey, () => []);
-        groups[dateKey]!.add(_CloudThumb(fileId: fileId, s3Key: obj.key, createdAt: date, deviceId: deviceId));
+        groups[dateKey]!.add(_CloudThumb(
+            fileId: fileId,
+            s3Key: obj.key,
+            createdAt: date,
+            deviceId: deviceId));
       }
 
       final sortedKeys = groups.keys.toList()..sort((a, b) => b.compareTo(a));
@@ -169,14 +194,22 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
       setState(() {
         _allSections = sortedKeys.map((key) {
           final date = DateTime.parse(key);
-          return _CloudDaySection(dateKey: key, label: _formatDateLabel(date), thumbs: groups[key]!);
+          return _CloudDaySection(
+              dateKey: key,
+              label: _formatDateLabel(date),
+              thumbs: groups[key]!);
         }).toList();
         _updateVisibleSections();
         _loading = false;
       });
     } catch (e) {
+      developer.log('_loadCloudThumbs error: $e', name: 'CloudGallery');
       if (!mounted) return;
-      setState(() { _loading = false; _error = true; _errorMsg = e.toString(); });
+      setState(() {
+        _loading = false;
+        _error = true;
+        _errorMsg = e.toString();
+      });
     }
   }
 
@@ -188,7 +221,10 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
     return fileName.replaceAll('_thumb.enc', '');
   }
 
-  String _extractDeviceId(String key) { final parts = key.split('/'); return parts.length >= 2 ? parts[1] : 'default'; }
+  String _extractDeviceId(String key) {
+    final parts = key.split('/');
+    return parts.length >= 2 ? parts[1] : 'default';
+  }
 
   DateTime _extractDateFromKey(String key) {
     try {
@@ -198,7 +234,8 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
           final year = int.parse(part.substring(0, 4));
           final month = int.parse(part.substring(4, 6));
           final day = int.parse(part.substring(6, 8));
-          if (month >= 1 && month <= 12 && day >= 1 && day <= 31) return DateTime(year, month, day);
+          if (month >= 1 && month <= 12 && day >= 1 && day <= 31)
+            return DateTime(year, month, day);
         }
       }
     } catch (_) {}
@@ -234,7 +271,9 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
       crypto.secureFree(dek);
       await cache.save(thumb.fileId, decrypted);
       return decrypted;
-    } catch (_) { return null; }
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _openFullImage(_CloudThumb thumb) async {
@@ -243,18 +282,28 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
       final crypto = ref.read(cryptoServiceProvider);
       final credService = ref.read(credentialServiceProvider);
       if (!credService.isSessionActive) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请先在设置中创建加密密码')));
+        if (mounted)
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('请先在设置中创建加密密码')));
         return;
       }
-      if (mounted) showDialog(context: context, barrierDismissible: false,
-          builder: (_) => const Center(child: EnpixCircularProgress()));
+      if (mounted)
+        showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => const Center(child: EnpixCircularProgress()));
 
       final fingerprint = await credService.getKekFingerprint() ?? 'shared';
-      final fullKey = S3Service.generateKey(fingerprint, thumb.fileId, thumb.createdAt, deviceId: thumb.deviceId);
+      final fullKey = S3Service.generateKey(
+          fingerprint, thumb.fileId, thumb.createdAt,
+          deviceId: thumb.deviceId);
       final encrypted = await s3.getObject(fullKey);
       final meta = await s3.headObject(fullKey);
       final dekB64 = meta['x-amz-meta-dek'];
-      if (dekB64 == null) { if (mounted) Navigator.pop(context); return; }
+      if (dekB64 == null) {
+        if (mounted) Navigator.pop(context);
+        return;
+      }
 
       final wrappedDek = CryptoService.b64Decode(dekB64);
       final kek = credService.sessionKek!;
@@ -264,22 +313,28 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
 
       if (mounted) {
         Navigator.pop(context);
-        Navigator.of(context).push(MaterialPageRoute(builder: (_) => _FullScreenImage(data: decrypted)));
+        Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => _FullScreenImage(data: decrypted)));
       }
     } catch (e) {
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('下载失败: $e'), backgroundColor: AppColors.brandRed));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('下载失败: $e'), backgroundColor: AppColors.brandRed));
       }
     }
   }
 
   Future<void> _saveSelectedDevice(String deviceId) async {
-    await const FlutterSecureStorage().write(key: _selectedDeviceKey, value: deviceId);
+    await const FlutterSecureStorage()
+        .write(key: _selectedDeviceKey, value: deviceId);
   }
 
   void _onDeviceSelected(String deviceId) {
-    setState(() { _selectedDeviceId = deviceId; _sections = []; });
+    setState(() {
+      _selectedDeviceId = deviceId;
+      _sections = [];
+    });
     _saveSelectedDevice(deviceId);
     _loadCloudThumbs();
   }
@@ -290,7 +345,11 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
       backgroundColor: AppColors.backgroundPrimary,
       appBar: AppBar(
         title: const Text('云端'),
-        actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _loadCloudThumbs)],
+        actions: [
+          IconButton(
+              icon: const Icon(Icons.refresh_rounded),
+              onPressed: _loadCloudThumbs)
+        ],
       ),
       body: Column(
         children: [
@@ -303,14 +362,20 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
 
   Widget _buildDeviceSelector() {
     return Container(
-      height: 48, color: AppColors.backgroundSecondary,
+      height: 48,
+      color: AppColors.backgroundSecondary,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
         children: [
           _deviceChip(_allDevicesId, '全部', Icons.devices_rounded),
-          ..._devices.entries.map((e) => _deviceChip(e.key, e.value.name,
-              e.key == _currentDeviceId ? Icons.phone_iphone_rounded : Icons.phone_android_rounded)),
+          ..._devices.entries.map((e) => _deviceChip(
+              e.key,
+              e.value.name,
+              e.key == _currentDeviceId
+                  ? Icons.phone_iphone_rounded
+                  : Icons.phone_android_rounded)),
         ],
       ),
     );
@@ -322,45 +387,73 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
       padding: const EdgeInsets.only(right: AppSpacing.sm),
       child: FilterChip(
         selected: selected,
-        avatar: Icon(icon, size: 16, color: selected ? AppColors.brandBlue : AppColors.labelSecondary),
+        avatar: Icon(icon,
+            size: 16,
+            color: selected ? AppColors.brandBlue : AppColors.labelSecondary),
         label: Text(label),
         onSelected: (_) => _onDeviceSelected(deviceId),
         selectedColor: AppColors.brandBlue.withAlpha(25),
-        labelStyle: TextStyle(fontSize: 14, fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+        labelStyle: TextStyle(
+            fontSize: 14,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
             color: selected ? AppColors.brandBlue : AppColors.labelPrimary),
-        showCheckmark: false, side: BorderSide.none,
+        showCheckmark: false,
+        side: BorderSide.none,
       ),
     );
   }
 
   Widget _buildBody() {
     if (_loading) return _buildSkeletonGrid();
-    if (_needPassphrase && ref.read(credentialServiceProvider).isSessionActive) {
-      _needPassphrase = false; _error = false;
+    if (_needPassphrase &&
+        ref.read(credentialServiceProvider).isSessionActive) {
+      _needPassphrase = false;
+      _error = false;
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadCloudThumbs());
       return _buildSkeletonGrid();
     }
     if (_error) {
       if (_needPassphrase) {
-        return EnpixEmptyState(icon: Icons.lock_outline_rounded, title: '需要设置加密密钥',
-          subtitle: 'Enpix 使用端到端加密保护你的照片\n请前往设置 → 安全中创建加密密码',
-          action: FilledButton.icon(onPressed: widget.onNavigateToSettings,
-              icon: const Icon(Icons.settings_rounded, size: 18), label: const Text('前往设置')));
+        return EnpixEmptyState(
+            icon: Icons.lock_outline_rounded,
+            title: '需要设置加密密钥',
+            subtitle: 'Enpix 使用端到端加密保护你的照片\n请前往设置 → 安全中创建加密密码',
+            action: FilledButton.icon(
+                onPressed: widget.onNavigateToSettings,
+                icon: const Icon(Icons.settings_rounded, size: 18),
+                label: const Text('前往设置')));
       }
-      return EnpixErrorState(title: '无法加载云端照片', subtitle: _errorMsg, onRetry: _loadCloudThumbs);
+      return EnpixErrorState(
+        title: '无法加载云端照片',
+        subtitle: _errorMsg,
+        onRetry: _loadCloudThumbs,
+        extraAction: TextButton.icon(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: _errorMsg));
+              if (mounted)
+                ScaffoldMessenger.of(context)
+                    .showSnackBar(const SnackBar(content: Text('错误信息已复制')));
+            },
+            icon: const Icon(Icons.copy_rounded, size: 16),
+            label: const Text('复制错误')),
+      );
     }
     if (_sections.isEmpty) {
-      return const EnpixEmptyState(icon: Icons.cloud_queue_rounded, title: '还没有云端照片',
+      return const EnpixEmptyState(
+          icon: Icons.cloud_queue_rounded,
+          title: '还没有云端照片',
           subtitle: '在「照片」页面备份照片后，这里会显示');
     }
     return RefreshIndicator(
       onRefresh: _loadCloudThumbs,
       child: ListView.builder(
-        controller: _scrollCtrl, padding: const EdgeInsets.only(bottom: 100),
+        controller: _scrollCtrl,
+        padding: const EdgeInsets.only(bottom: 100),
         itemCount: _sections.length,
         itemBuilder: (context, sectionIndex) {
           final section = _sections[sectionIndex];
-          return _CloudDaySectionWidget(section: section, loadThumb: _loadThumb, onTap: _openFullImage);
+          return _CloudDaySectionWidget(
+              section: section, loadThumb: _loadThumb, onTap: _openFullImage);
         },
       ),
     );
@@ -372,7 +465,8 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
       children: [
         for (var i = 0; i < 3; i++) ...[
           Padding(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.sm),
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.sm),
             child: Row(children: [
               EnpixSkeleton(width: 100, height: 22),
               const SizedBox(width: AppSpacing.sm),
@@ -391,13 +485,18 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
 class _CloudThumb {
   final String fileId, s3Key, deviceId;
   final DateTime createdAt;
-  const _CloudThumb({required this.fileId, required this.s3Key, required this.createdAt, required this.deviceId});
+  const _CloudThumb(
+      {required this.fileId,
+      required this.s3Key,
+      required this.createdAt,
+      required this.deviceId});
 }
 
 class _CloudDaySection {
   final String dateKey, label;
   final List<_CloudThumb> thumbs;
-  const _CloudDaySection({required this.dateKey, required this.label, required this.thumbs});
+  const _CloudDaySection(
+      {required this.dateKey, required this.label, required this.thumbs});
 }
 
 // ── Section widget ──
@@ -406,36 +505,53 @@ class _CloudDaySectionWidget extends StatelessWidget {
   final _CloudDaySection section;
   final Future<Uint8List?> Function(_CloudThumb) loadThumb;
   final void Function(_CloudThumb) onTap;
-  const _CloudDaySectionWidget({required this.section, required this.loadThumb, required this.onTap});
+  const _CloudDaySectionWidget(
+      {required this.section, required this.loadThumb, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(
-        padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.sm),
+        padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.sm),
         child: Row(children: [
-          Text(section.label, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700,
-              color: AppColors.labelPrimary, letterSpacing: -0.5)),
+          Text(section.label,
+              style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.labelPrimary,
+                  letterSpacing: -0.5)),
           const SizedBox(width: AppSpacing.sm),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
-            decoration: BoxDecoration(color: AppColors.fillSecondary, borderRadius: BorderRadius.circular(AppRadius.sm)),
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
+            decoration: BoxDecoration(
+                color: AppColors.fillSecondary,
+                borderRadius: BorderRadius.circular(AppRadius.sm)),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.cloud_rounded, size: 12, color: AppColors.labelSecondary),
+              const Icon(Icons.cloud_rounded,
+                  size: 12, color: AppColors.labelSecondary),
               const SizedBox(width: AppSpacing.xxs),
-              Text('${section.thumbs.length}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.labelSecondary)),
+              Text('${section.thumbs.length}',
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.labelSecondary)),
             ]),
           ),
         ]),
       ),
       GridView.builder(
-        shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 2),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3, crossAxisSpacing: 2, mainAxisSpacing: 2),
+            crossAxisCount: 3, crossAxisSpacing: 2, mainAxisSpacing: 2),
         itemCount: section.thumbs.length,
         itemBuilder: (context, index) => _CloudThumbWidget(
-          thumb: section.thumbs[index], loadThumb: loadThumb, onTap: () => onTap(section.thumbs[index])),
+            thumb: section.thumbs[index],
+            loadThumb: loadThumb,
+            onTap: () => onTap(section.thumbs[index])),
       ),
     ]);
   }
@@ -447,7 +563,8 @@ class _CloudThumbWidget extends StatefulWidget {
   final _CloudThumb thumb;
   final Future<Uint8List?> Function(_CloudThumb) loadThumb;
   final VoidCallback onTap;
-  const _CloudThumbWidget({required this.thumb, required this.loadThumb, required this.onTap});
+  const _CloudThumbWidget(
+      {required this.thumb, required this.loadThumb, required this.onTap});
   @override
   State<_CloudThumbWidget> createState() => _CloudThumbWidgetState();
 }
@@ -457,11 +574,18 @@ class _CloudThumbWidgetState extends State<_CloudThumbWidget> {
   bool _loading = true;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    _load();
+  }
 
   Future<void> _load() async {
     final data = await widget.loadThumb(widget.thumb);
-    if (mounted) setState(() { _data = data; _loading = false; });
+    if (mounted)
+      setState(() {
+        _data = data;
+        _loading = false;
+      });
   }
 
   @override
@@ -475,14 +599,23 @@ class _CloudThumbWidgetState extends State<_CloudThumbWidget> {
               ? const EnpixSkeleton(width: 200, height: 200)
               : _data != null
                   ? Image.memory(_data!, fit: BoxFit.cover)
-                  : Container(color: AppColors.fillSecondary,
-                      child: const Icon(Icons.broken_image_outlined, color: AppColors.brandGray, size: 32)),
+                  : Container(
+                      color: AppColors.fillSecondary,
+                      child: const Icon(Icons.broken_image_outlined,
+                          color: AppColors.brandGray, size: 32)),
         ),
         // Encryption badge
-        Positioned(top: 4, right: 4,
-          child: Container(width: 20, height: 20,
-            decoration: BoxDecoration(color: AppColors.brandPurple.withAlpha(180), borderRadius: BorderRadius.circular(AppRadius.xxs)),
-            child: const Icon(Icons.lock_rounded, size: 12, color: Colors.white))),
+        Positioned(
+            top: 4,
+            right: 4,
+            child: Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                    color: AppColors.brandPurple.withAlpha(180),
+                    borderRadius: BorderRadius.circular(AppRadius.xxs)),
+                child: const Icon(Icons.lock_rounded,
+                    size: 12, color: Colors.white))),
       ]),
     );
   }
@@ -498,9 +631,14 @@ class _FullScreenImage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(backgroundColor: Colors.black54, iconTheme: const IconThemeData(color: Colors.white)),
+      appBar: AppBar(
+          backgroundColor: Colors.black54,
+          iconTheme: const IconThemeData(color: Colors.white)),
       body: Center(
-        child: InteractiveViewer(minScale: 0.5, maxScale: 5.0, child: Image.memory(data, fit: BoxFit.contain)),
+        child: InteractiveViewer(
+            minScale: 0.5,
+            maxScale: 5.0,
+            child: Image.memory(data, fit: BoxFit.contain)),
       ),
     );
   }

@@ -2,17 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:see_photo/core/theme/app_colors.dart';
 import 'package:see_photo/core/theme/app_spacing.dart';
 
-/// Error state with title, subtitle, and retry action button.
+/// Error state with title, subtitle, retry action, and optional extra action.
 class EnpixErrorState extends StatelessWidget {
   final String title;
   final String? subtitle;
   final VoidCallback? onRetry;
+  final Widget? extraAction;
 
   const EnpixErrorState({
     super.key,
     required this.title,
     this.subtitle,
     this.onRetry,
+    this.extraAction,
   });
 
   @override
@@ -64,6 +66,10 @@ class EnpixErrorState extends StatelessWidget {
                 icon: const Icon(Icons.refresh_rounded, size: 18),
                 label: const Text('重试'),
               ),
+            ],
+            if (extraAction != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              extraAction!,
             ],
           ],
         ),
