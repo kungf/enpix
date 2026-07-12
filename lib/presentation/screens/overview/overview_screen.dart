@@ -1,0 +1,621 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:see_photo/core/theme/app_colors.dart';
+import 'package:see_photo/core/theme/app_spacing.dart';
+import 'package:see_photo/services/providers.dart';
+
+/// Dashboard overview — storage stats, backup activity, device health.
+///
+/// Design decisions:
+/// - fl_chart visualizations for storage and activity
+/// - iOS 18 grouped card style
+/// - Pull-to-refresh for real-time data
+/// - Informational at a glance, actionable via settings
+class OverviewScreen extends ConsumerStatefulWidget {
+  const OverviewScreen({super.key});
+
+  @override
+  ConsumerState<OverviewScreen> createState() => _OverviewScreenState();
+}
+
+class _OverviewScreenState extends ConsumerState<OverviewScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(ttlEngineProvider).ensureLoaded();
+    });
+  }
+
+  Future<void> _onRefresh() async {
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.backgroundPrimary,
+      appBar: AppBar(
+        title: const Text('概览'),
+        centerTitle: true,
+      ),
+      body: RefreshIndicator(
+        onRefresh: _onRefresh,
+        child: ListView(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+          children: [
+            _StorageCard(),
+            const SizedBox(height: AppSpacing.sm),
+            _BackupActivityCard(),
+            const SizedBox(height: AppSpacing.sm),
+            _DeviceStatusCard(),
+            const SizedBox(height: AppSpacing.sm),
+            _SystemStatusCard(),
+            const SizedBox(height: AppSpacing.xxxxl),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Storage Card ──
+
+class _StorageCard extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final task = ref.watch(backupManagerProvider);
+    final totalBytes = task.totalBytes;
+    final usedGb = totalBytes / (1024 * 1024 * 1024);
+    final displayUsed = usedGb > 0 ? usedGb.toStringAsFixed(1) : '0';
+    final percentage = (usedGb / 50.0).clamp(0.0, 1.0);
+
+    return _DashboardCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.cloud_rounded, size: 18, color: AppColors.brandBlue),
+              SizedBox(width: AppSpacing.sm),
+              Text(
+                '存储用量',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.labelPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Row(
+            children: [
+              // Donut chart
+              SizedBox(
+                width: 100,
+                height: 100,
+                child: PieChart(
+                  PieChartData(
+                    sections: [
+                      PieChartSectionData(
+                        value: percentage * 100,
+                        color: AppColors.brandBlue,
+                        radius: 22,
+                        showTitle: false,
+                      ),
+                      PieChartSectionData(
+                        value: (1 - percentage) * 100,
+                        color: AppColors.fillPrimary,
+                        radius: 22,
+                        showTitle: false,
+                      ),
+                    ],
+                    sectionsSpace: 0,
+                    centerSpaceRadius: 32,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xl),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$displayUsed GB',
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.labelPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xxs),
+                    const Text(
+                      '已用 / 总计 50 GB',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.labelSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    EnpixMiniProgress(value: percentage),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Backup Activity Card ──
+
+class _BackupActivityCard extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final task = ref.watch(backupManagerProvider);
+
+    return _DashboardCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.bar_chart_rounded, size: 18, color: AppColors.brandGreen),
+              SizedBox(width: AppSpacing.sm),
+              Text(
+                '备份活动',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.labelPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          // Stats row
+          Row(
+            children: [
+              _StatBadge(
+                icon: Icons.check_circle_rounded,
+                iconColor: AppColors.brandGreen,
+                value: '${task.completedCount}',
+                label: '已完成',
+              ),
+              const SizedBox(width: AppSpacing.xl),
+              _StatBadge(
+                icon: Icons.error_outline_rounded,
+                iconColor: task.failedCount > 0
+                    ? AppColors.brandRed
+                    : AppColors.labelTertiary,
+                value: '${task.failedCount}',
+                label: '失败',
+              ),
+              const SizedBox(width: AppSpacing.xl),
+              _StatBadge(
+                icon: Icons.skip_next_rounded,
+                iconColor: AppColors.labelSecondary,
+                value: '${task.skippedCount}',
+                label: '跳过',
+              ),
+            ],
+          ),
+          if (task.totalCount > 0) ...[
+            const SizedBox(height: AppSpacing.lg),
+            _MiniBarChart(),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniBarChart extends StatelessWidget {
+  // Placeholder activity data for the last 7 days
+  final List<int> bars = const [3, 1, 0, 5, 2, 4, 1];
+
+  @override
+  Widget build(BuildContext context) {
+    final maxVal = bars.reduce((a, b) => a > b ? a : b);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '最近 7 天',
+          style: TextStyle(fontSize: 13, color: AppColors.labelSecondary),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        SizedBox(
+          height: 60,
+          child: BarChart(
+            BarChartData(
+              alignment: BarChartAlignment.spaceAround,
+              maxY: (maxVal + 1).toDouble(),
+              barTouchData: BarTouchData(enabled: false),
+              titlesData: FlTitlesData(
+                show: true,
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    getTitlesWidget: (value, meta) {
+                      const days = ['一', '二', '三', '四', '五', '六', '日'];
+                      final idx = value.toInt();
+                      if (idx < 0 || idx >= days.length) {
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          days[idx],
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: AppColors.labelTertiary,
+                          ),
+                        ),
+                      );
+                    },
+                    reservedSize: 20,
+                  ),
+                ),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                topTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                rightTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+              ),
+              gridData: FlGridData(show: false),
+              borderData: FlBorderData(show: false),
+              barGroups: List.generate(bars.length, (i) {
+                return BarChartGroupData(
+                  x: i,
+                  barRods: [
+                    BarChartRodData(
+                      toY: bars[i].toDouble(),
+                      color: bars[i] > 0
+                          ? AppColors.brandBlue
+                          : AppColors.fillPrimary,
+                      width: 8,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(3),
+                      ),
+                    ),
+                  ],
+                );
+              }),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Device Status Card ──
+
+class _DeviceStatusCard extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return _DashboardCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.devices_rounded, size: 18, color: AppColors.brandPurple),
+              SizedBox(width: AppSpacing.sm),
+              Text(
+                '设备',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.labelPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _DeviceRow(
+            icon: Icons.phone_iphone_rounded,
+            name: '本机',
+            status: '已注册',
+            isCurrent: true,
+          ),
+          const Divider(indent: 0),
+          _DeviceRow(
+            icon: Icons.phone_android_rounded,
+            name: '其他设备',
+            status: '云端查看',
+            isCurrent: false,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DeviceRow extends StatelessWidget {
+  final IconData icon;
+  final String name;
+  final String status;
+  final bool isCurrent;
+
+  const _DeviceRow({
+    required this.icon,
+    required this.name,
+    required this.status,
+    required this.isCurrent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: AppColors.brandGray),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color: AppColors.labelPrimary,
+                  ),
+                ),
+                Text(
+                  status,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.labelSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (isCurrent)
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.xxs,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.brandGreen.withAlpha(20),
+                borderRadius: BorderRadius.circular(AppRadius.xs),
+              ),
+              child: const Text(
+                '当前',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.brandGreen,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── System Status Card ──
+
+class _SystemStatusCard extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final credService = ref.read(credentialServiceProvider);
+    final isSessionActive = credService.isSessionActive;
+
+    return _DashboardCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.info_rounded, size: 18, color: AppColors.brandGray),
+              SizedBox(width: AppSpacing.sm),
+              Text(
+                '系统状态',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.labelPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _StatusRow(
+            icon: Icons.lock_rounded,
+            label: '加密密钥',
+            status: isSessionActive ? '已解锁' : '未解锁',
+            statusColor:
+                isSessionActive ? AppColors.brandGreen : AppColors.brandOrange,
+          ),
+          const Divider(indent: 0),
+          _StatusRow(
+            icon: Icons.cloud_rounded,
+            label: '连接状态',
+            status: isSessionActive ? '已配置' : '待配置',
+            statusColor: isSessionActive
+                ? AppColors.labelSecondary
+                : AppColors.brandOrange,
+          ),
+          const Divider(indent: 0),
+          _StatusRow(
+            icon: Icons.cleaning_services_rounded,
+            label: '本地清理',
+            status: '按需运行',
+            statusColor: AppColors.labelSecondary,
+          ),
+          const Divider(indent: 0),
+          _StatusRow(
+            icon: Icons.shield_rounded,
+            label: '加密算法',
+            status: 'XChaCha20-Poly1305',
+            statusColor: AppColors.brandPurple,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String status;
+  final Color statusColor;
+
+  const _StatusRow({
+    required this.icon,
+    required this.label,
+    required this.status,
+    required this.statusColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: AppColors.brandGray),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 15,
+                color: AppColors.labelPrimary,
+              ),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.xxs,
+            ),
+            decoration: BoxDecoration(
+              color: statusColor.withAlpha(20),
+              borderRadius: BorderRadius.circular(AppRadius.xs),
+            ),
+            child: Text(
+              status,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: statusColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Shared Components ──
+
+class _DashboardCard extends StatelessWidget {
+  final Widget child;
+
+  const _DashboardCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.sm,
+      ),
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.backgroundSecondary,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _StatBadge extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String value;
+  final String label;
+
+  const _StatBadge({
+    required this.icon,
+    required this.iconColor,
+    required this.value,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Icon(icon, size: 20, color: iconColor),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: AppColors.labelPrimary,
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.labelSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class EnpixMiniProgress extends StatelessWidget {
+  final double value;
+
+  const EnpixMiniProgress({super.key, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 6,
+      decoration: BoxDecoration(
+        color: AppColors.fillPrimary,
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: FractionallySizedBox(
+        alignment: Alignment.centerLeft,
+        widthFactor: value.clamp(0.0, 1.0),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [AppColors.brandBlue, AppColors.brandTeal],
+            ),
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+      ),
+    );
+  }
+}

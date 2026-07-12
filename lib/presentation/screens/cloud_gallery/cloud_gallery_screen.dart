@@ -2,19 +2,33 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../../../services/crypto/crypto_service.dart';
-import '../../../services/storage/s3_service.dart';
-import '../../../services/providers.dart';
-import '../../../domain/entities/storage_config.dart';
+import 'package:see_photo/core/theme/app_colors.dart';
+import 'package:see_photo/core/theme/app_spacing.dart';
+import 'package:see_photo/services/crypto/crypto_service.dart';
+import 'package:see_photo/services/storage/s3_service.dart';
+import 'package:see_photo/services/providers.dart';
+import 'package:see_photo/domain/entities/storage_config.dart';
+import 'package:see_photo/presentation/shared/widgets/enpix_empty_state.dart';
+import 'package:see_photo/presentation/shared/widgets/enpix_error_state.dart';
+import 'package:see_photo/presentation/shared/widgets/enpix_progress.dart';
+import 'package:see_photo/presentation/shared/widgets/enpix_skeleton.dart';
 
-/// Cloud photo browser — shows encrypted thumbnails from S3, grouped by day.
+/// Cloud photo browser — encrypted thumbnails from S3, grouped by day.
+///
+/// Design decisions:
+/// - Skeleton loading for placeholder UX
+/// - Device selector as horizontal scroll pills
+/// - Encryption badge on each thumbnail
+/// - Pull-to-refresh
+/// - Scroll pagination (30 day batches)
 class CloudGalleryScreen extends ConsumerStatefulWidget {
   final VoidCallback? onNavigateToSettings;
 
   const CloudGalleryScreen({super.key, this.onNavigateToSettings});
 
   @override
-  ConsumerState<CloudGalleryScreen> createState() => _CloudGalleryScreenState();
+  ConsumerState<CloudGalleryScreen> createState() =>
+      _CloudGalleryScreenState();
 }
 
 class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
@@ -31,7 +45,6 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
   int _visibleDays = 30;
   final ScrollController _scrollCtrl = ScrollController();
 
-  // Device selector state
   Map<String, DeviceInfo> _devices = {};
   String _selectedDeviceId = _allDevicesId;
   String? _currentDeviceId;
@@ -73,15 +86,11 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
   }
 
   Future<void> _init() async {
-    // Restore last selected device.
     final storage = const FlutterSecureStorage();
     final saved = await storage.read(key: _selectedDeviceKey);
     if (saved != null) _selectedDeviceId = saved;
 
-    // Get current device ID.
     _currentDeviceId = await ref.read(deviceServiceProvider).getDeviceId();
-
-    // If no saved selection, default to current device.
     if (saved == null) _selectedDeviceId = _currentDeviceId!;
 
     await _loadCloudThumbs();
@@ -102,68 +111,39 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
       final s3 = ref.read(s3ServiceProvider);
 
       if (!s3.isConfigured) {
-        // Step 1: Check if encryption key is set up.
         if (!credService.isSessionActive) {
-          setState(() {
-            _loading = false;
-            _error = true;
-            _needPassphrase = true;
-          });
+          setState(() { _loading = false; _error = true; _needPassphrase = true; });
           return;
         }
-
-        // Step 2: Check S3 connection details (endpoint, bucket).
         final endpointUrl = await credService.getS3Endpoint() ?? '';
         final bucketName = await credService.getS3Bucket() ?? '';
         if (endpointUrl.isEmpty || bucketName.isEmpty) {
-          setState(() {
-            _loading = false;
-            _error = true;
-            _errorMsg = '请先在 设置 → S3 存储配置 中填写 Endpoint 和 Bucket';
-          });
+          setState(() { _loading = false; _error = true; _errorMsg = '请先在设置中配置 S3 Endpoint 和 Bucket'; });
           return;
         }
-
-        // Step 3: Check S3 credentials (AK, SK).
         final s3Creds = await credService.loadS3Credentials();
         if (s3Creds == null) {
-          setState(() {
-            _loading = false;
-            _error = true;
-            _errorMsg = '请先在 设置 → S3 存储配置 中填写 Access Key 和 Secret Key';
-          });
+          setState(() { _loading = false; _error = true; _errorMsg = '请先在设置中配置 Access Key 和 Secret Key'; });
           return;
         }
-
         final region = await credService.getS3Region() ?? 'default';
         final fingerprint = await credService.getKekFingerprint();
         final deviceId = await ref.read(deviceServiceProvider).getDeviceId();
-
         s3.configure(
-          StorageConfig(
-            endpointUrl: endpointUrl,
-            bucketName: bucketName,
-            region: region,
-            accessKey: s3Creds.accessKey,
-            secretKey: s3Creds.secretKey,
-            updatedAt: DateTime.now().millisecondsSinceEpoch,
-          ),
-          kekFingerprint: fingerprint,
-          deviceId: deviceId,
+          StorageConfig(endpointUrl: endpointUrl, bucketName: bucketName, region: region,
+              accessKey: s3Creds.accessKey, secretKey: s3Creds.secretKey, updatedAt: DateTime.now().millisecondsSinceEpoch),
+          kekFingerprint: fingerprint, deviceId: deviceId,
         );
       }
 
       final fingerprint = await credService.getKekFingerprint() ?? 'shared';
       final fpPrefix = fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared';
 
-      // Load device list.
       final devices = await s3.listDevices();
       _devices = devices;
 
-      // Determine prefix based on selected device.
       List<S3Object> objects;
       if (_selectedDeviceId == _allDevicesId) {
-        // List all thumbs across all devices.
         _prefix = '$fpPrefix/';
         final allObjects = await s3.listObjects(_prefix!);
         objects = allObjects.where((o) => o.key.contains('/thumbs/')).toList();
@@ -171,57 +151,35 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
         _prefix = '$_selectedDeviceId/thumbs/';
         objects = await s3.listObjects('$fpPrefix/$_prefix');
       }
-
-      // Sort by key descending (date in path ensures day-level ordering)
       objects.sort((a, b) => b.key.compareTo(a.key));
 
-      // Build sections
       final Map<String, List<_CloudThumb>> groups = {};
-
       for (final obj in objects) {
         final fileId = _extractFileId(obj.key);
         if (fileId == null) continue;
-
-        // Extract deviceId and date from S3 key: {fp}/{deviceId}/thumbs/{date}/{fileId}_thumb.enc
         final deviceId = _extractDeviceId(obj.key);
         final date = _extractDateFromKey(obj.key);
         final dateKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-
         groups.putIfAbsent(dateKey, () => []);
-        groups[dateKey]!.add(_CloudThumb(
-          fileId: fileId,
-          s3Key: obj.key,
-          createdAt: date,
-          deviceId: deviceId,
-        ));
+        groups[dateKey]!.add(_CloudThumb(fileId: fileId, s3Key: obj.key, createdAt: date, deviceId: deviceId));
       }
 
       final sortedKeys = groups.keys.toList()..sort((a, b) => b.compareTo(a));
-
       if (!mounted) return;
       setState(() {
         _allSections = sortedKeys.map((key) {
           final date = DateTime.parse(key);
-          return _CloudDaySection(
-            dateKey: key,
-            label: _formatDateLabel(date),
-            thumbs: groups[key]!,
-          );
+          return _CloudDaySection(dateKey: key, label: _formatDateLabel(date), thumbs: groups[key]!);
         }).toList();
         _updateVisibleSections();
         _loading = false;
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _error = true;
-        _errorMsg = e.toString();
-      });
+      setState(() { _loading = false; _error = true; _errorMsg = e.toString(); });
     }
   }
 
-  /// Extract fileId from S3 key: {fp}/{deviceId}/thumbs/{date}/{fileId}_thumb.enc
   String? _extractFileId(String key) {
     final parts = key.split('/');
     if (parts.isEmpty) return null;
@@ -230,27 +188,17 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
     return fileName.replaceAll('_thumb.enc', '');
   }
 
-  /// Extract deviceId from S3 key: {fp}/{deviceId}/thumbs/{date}/...
-  String _extractDeviceId(String key) {
-    final parts = key.split('/');
-    // parts: [fp, deviceId, thumbs, date, file]
-    if (parts.length >= 2) return parts[1];
-    return 'default';
-  }
+  String _extractDeviceId(String key) { final parts = key.split('/'); return parts.length >= 2 ? parts[1] : 'default'; }
 
-  /// Extract date from S3 key path: .../thumbs/{date}/{fileId}_thumb.enc
-  /// or .../files/{date}/{fileId}.enc
   DateTime _extractDateFromKey(String key) {
     try {
       final parts = key.split('/');
-      // Find the date segment (8 digits, e.g., "20210409")
       for (final part in parts) {
         if (part.length == 8 && int.tryParse(part) != null) {
           final year = int.parse(part.substring(0, 4));
           final month = int.parse(part.substring(4, 6));
           final day = int.parse(part.substring(6, 8));
-          if (month < 1 || month > 12 || day < 1 || day > 31) continue;
-          return DateTime(year, month, day);
+          if (month >= 1 && month <= 12 && day >= 1 && day <= 31) return DateTime(year, month, day);
         }
       }
     } catch (_) {}
@@ -262,77 +210,51 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
     final d = DateTime(date.year, date.month, date.day);
-
     if (d == today) return '今天';
     if (d == yesterday) return '昨天';
     return '${date.year}年${date.month}月${date.day}日';
   }
 
-  /// Load a thumbnail — from cache or download + decrypt from S3.
   Future<Uint8List?> _loadThumb(_CloudThumb thumb) async {
     try {
       final s3 = ref.read(s3ServiceProvider);
       final crypto = ref.read(cryptoServiceProvider);
       final credService = ref.read(credentialServiceProvider);
       final cache = ref.read(thumbnailCacheProvider);
-
       if (!credService.isSessionActive) return null;
-
       final encrypted = await s3.getObject(thumb.s3Key);
       final meta = await s3.headObject(thumb.s3Key);
       final dekB64 = meta['x-amz-meta-dek'];
       final nonceB64 = meta['x-amz-meta-nonce'];
-
       if (dekB64 == null || nonceB64 == null) return null;
-
       final wrappedDek = CryptoService.b64Decode(dekB64);
       final kek = credService.sessionKek!;
       final dek = await crypto.unwrapKey(wrappedDek, kek);
       final decrypted = await crypto.decrypt(encrypted, dek);
       crypto.secureFree(dek);
-
       await cache.save(thumb.fileId, decrypted);
       return decrypted;
-    } catch (e) {
-      return null;
-    }
+    } catch (_) { return null; }
   }
 
-  /// Download and view a full-resolution image.
   Future<void> _openFullImage(_CloudThumb thumb) async {
     try {
       final s3 = ref.read(s3ServiceProvider);
       final crypto = ref.read(cryptoServiceProvider);
       final credService = ref.read(credentialServiceProvider);
-
       if (!credService.isSessionActive) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('请先在设置中创建加密密码')),
-          );
-        }
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请先在设置中创建加密密码')));
         return;
       }
-
-      if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => const Center(child: CircularProgressIndicator()),
-        );
-      }
+      if (mounted) showDialog(context: context, barrierDismissible: false,
+          builder: (_) => const Center(child: EnpixCircularProgress()));
 
       final fingerprint = await credService.getKekFingerprint() ?? 'shared';
       final fullKey = S3Service.generateKey(fingerprint, thumb.fileId, thumb.createdAt, deviceId: thumb.deviceId);
-
       final encrypted = await s3.getObject(fullKey);
       final meta = await s3.headObject(fullKey);
       final dekB64 = meta['x-amz-meta-dek'];
-
-      if (dekB64 == null) {
-        if (mounted) Navigator.pop(context);
-        return;
-      }
+      if (dekB64 == null) { if (mounted) Navigator.pop(context); return; }
 
       final wrappedDek = CryptoService.b64Decode(dekB64);
       final kek = credService.sessionKek!;
@@ -342,30 +264,22 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
 
       if (mounted) {
         Navigator.pop(context);
-        Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => _FullScreenImage(data: decrypted),
-        ));
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => _FullScreenImage(data: decrypted)));
       }
     } catch (e) {
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('下载失败: $e'), backgroundColor: Colors.red),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('下载失败: $e'), backgroundColor: AppColors.brandRed));
       }
     }
   }
 
   Future<void> _saveSelectedDevice(String deviceId) async {
-    final storage = const FlutterSecureStorage();
-    await storage.write(key: _selectedDeviceKey, value: deviceId);
+    await const FlutterSecureStorage().write(key: _selectedDeviceKey, value: deviceId);
   }
 
   void _onDeviceSelected(String deviceId) {
-    setState(() {
-      _selectedDeviceId = deviceId;
-      _sections = [];
-    });
+    setState(() { _selectedDeviceId = deviceId; _sections = []; });
     _saveSelectedDevice(deviceId);
     _loadCloudThumbs();
   }
@@ -373,15 +287,10 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.backgroundPrimary,
       appBar: AppBar(
         title: const Text('云端'),
-        centerTitle: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: _loadCloudThumbs,
-          ),
-        ],
+        actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _loadCloudThumbs)],
       ),
       body: Column(
         children: [
@@ -393,18 +302,15 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
   }
 
   Widget _buildDeviceSelector() {
-    return SizedBox(
-      height: 48,
+    return Container(
+      height: 48, color: AppColors.backgroundSecondary,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
         children: [
           _deviceChip(_allDevicesId, '全部', Icons.devices_rounded),
-          ..._devices.entries.map((e) => _deviceChip(
-            e.key,
-            e.value.name,
-            e.key == _currentDeviceId ? Icons.phone_iphone_rounded : Icons.phone_android_rounded,
-          )),
+          ..._devices.entries.map((e) => _deviceChip(e.key, e.value.name,
+              e.key == _currentDeviceId ? Icons.phone_iphone_rounded : Icons.phone_android_rounded)),
         ],
       ),
     );
@@ -413,99 +319,69 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
   Widget _deviceChip(String deviceId, String label, IconData icon) {
     final selected = _selectedDeviceId == deviceId;
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.only(right: AppSpacing.sm),
       child: FilterChip(
         selected: selected,
-        label: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 16, color: selected ? null : Colors.grey),
-          const SizedBox(width: 4),
-          Text(label),
-        ]),
+        avatar: Icon(icon, size: 16, color: selected ? AppColors.brandBlue : AppColors.labelSecondary),
+        label: Text(label),
         onSelected: (_) => _onDeviceSelected(deviceId),
+        selectedColor: AppColors.brandBlue.withAlpha(25),
+        labelStyle: TextStyle(fontSize: 14, fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+            color: selected ? AppColors.brandBlue : AppColors.labelPrimary),
+        showCheckmark: false, side: BorderSide.none,
       ),
     );
   }
 
   Widget _buildBody() {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    // If we showed the passphrase prompt but session is now active, reload.
+    if (_loading) return _buildSkeletonGrid();
     if (_needPassphrase && ref.read(credentialServiceProvider).isSessionActive) {
-      _needPassphrase = false;
-      _error = false;
+      _needPassphrase = false; _error = false;
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadCloudThumbs());
-      return const Center(child: CircularProgressIndicator());
+      return _buildSkeletonGrid();
     }
     if (_error) {
-      return Center(
-        child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                _needPassphrase ? Icons.lock_outline_rounded : Icons.cloud_off_rounded,
-                size: 48,
-                color: _needPassphrase ? Colors.orange : Colors.grey,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _needPassphrase ? '需要设置加密密钥' : '无法加载云端照片',
-                style: const TextStyle(fontSize: 16),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _needPassphrase
-                    ? 'Enpix 使用端到端加密保护你的照片\n请前往 设置 → 安全 中创建加密密码'
-                    : _errorMsg,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.grey, fontSize: 12),
-              ),
-              const SizedBox(height: 24),
-              if (_needPassphrase)
-                FilledButton.icon(
-                  onPressed: widget.onNavigateToSettings,
-                  icon: const Icon(Icons.settings_rounded, size: 18),
-                  label: const Text('前往设置'),
-                )
-              else
-                FilledButton(onPressed: _loadCloudThumbs, child: const Text('重试')),
-            ],
-          ),
-        ),
-        ),
-      );
+      if (_needPassphrase) {
+        return EnpixEmptyState(icon: Icons.lock_outline_rounded, title: '需要设置加密密钥',
+          subtitle: 'Enpix 使用端到端加密保护你的照片\n请前往设置 → 安全中创建加密密码',
+          action: FilledButton.icon(onPressed: widget.onNavigateToSettings,
+              icon: const Icon(Icons.settings_rounded, size: 18), label: const Text('前往设置')));
+      }
+      return EnpixErrorState(title: '无法加载云端照片', subtitle: _errorMsg, onRetry: _loadCloudThumbs);
     }
     if (_sections.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.cloud_queue_rounded, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('还没有云端照片', style: TextStyle(fontSize: 16, color: Colors.grey)),
-            SizedBox(height: 8),
-            Text('在「本地」页面备份照片后，这里会显示', style: TextStyle(color: Colors.grey, fontSize: 13)),
-          ],
-        ),
-      );
+      return const EnpixEmptyState(icon: Icons.cloud_queue_rounded, title: '还没有云端照片',
+          subtitle: '在「照片」页面备份照片后，这里会显示');
     }
-
     return RefreshIndicator(
       onRefresh: _loadCloudThumbs,
       child: ListView.builder(
-        controller: _scrollCtrl,
-        padding: const EdgeInsets.only(bottom: 80),
+        controller: _scrollCtrl, padding: const EdgeInsets.only(bottom: 100),
         itemCount: _sections.length,
         itemBuilder: (context, sectionIndex) {
           final section = _sections[sectionIndex];
-          return _CloudDaySectionWidget(
-            section: section,
-            loadThumb: _loadThumb,
-            onTap: _openFullImage,
-          );
+          return _CloudDaySectionWidget(section: section, loadThumb: _loadThumb, onTap: _openFullImage);
         },
       ),
+    );
+  }
+
+  Widget _buildSkeletonGrid() {
+    return ListView(
+      padding: const EdgeInsets.only(top: AppSpacing.lg, bottom: 100),
+      children: [
+        for (var i = 0; i < 3; i++) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.sm),
+            child: Row(children: [
+              EnpixSkeleton(width: 100, height: 22),
+              const SizedBox(width: AppSpacing.sm),
+              EnpixSkeleton(width: 30, height: 20),
+            ]),
+          ),
+          const EnpixSkeletonGrid(itemCount: 9),
+        ],
+      ],
     );
   }
 }
@@ -513,29 +389,15 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
 // ── Data models ──
 
 class _CloudThumb {
-  final String fileId;
-  final String s3Key;
+  final String fileId, s3Key, deviceId;
   final DateTime createdAt;
-  final String deviceId;
-
-  const _CloudThumb({
-    required this.fileId,
-    required this.s3Key,
-    required this.createdAt,
-    required this.deviceId,
-  });
+  const _CloudThumb({required this.fileId, required this.s3Key, required this.createdAt, required this.deviceId});
 }
 
 class _CloudDaySection {
-  final String dateKey;
-  final String label;
+  final String dateKey, label;
   final List<_CloudThumb> thumbs;
-
-  const _CloudDaySection({
-    required this.dateKey,
-    required this.label,
-    required this.thumbs,
-  });
+  const _CloudDaySection({required this.dateKey, required this.label, required this.thumbs});
 }
 
 // ── Section widget ──
@@ -544,65 +406,48 @@ class _CloudDaySectionWidget extends StatelessWidget {
   final _CloudDaySection section;
   final Future<Uint8List?> Function(_CloudThumb) loadThumb;
   final void Function(_CloudThumb) onTap;
-
-  const _CloudDaySectionWidget({
-    required this.section,
-    required this.loadThumb,
-    required this.onTap,
-  });
+  const _CloudDaySectionWidget({required this.section, required this.loadThumb, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 20, 12, 8),
-          child: Text(
-            section.label,
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: theme.colorScheme.onSurface,
-            ),
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.sm),
+        child: Row(children: [
+          Text(section.label, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700,
+              color: AppColors.labelPrimary, letterSpacing: -0.5)),
+          const SizedBox(width: AppSpacing.sm),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
+            decoration: BoxDecoration(color: AppColors.fillSecondary, borderRadius: BorderRadius.circular(AppRadius.sm)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.cloud_rounded, size: 12, color: AppColors.labelSecondary),
+              const SizedBox(width: AppSpacing.xxs),
+              Text('${section.thumbs.length}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.labelSecondary)),
+            ]),
           ),
-        ),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 2,
-            mainAxisSpacing: 2,
-          ),
-          itemCount: section.thumbs.length,
-          itemBuilder: (context, index) {
-            return _CloudThumbWidget(
-              thumb: section.thumbs[index],
-              loadThumb: loadThumb,
-              onTap: () => onTap(section.thumbs[index]),
-            );
-          },
-        ),
-      ],
-    );
+        ]),
+      ),
+      GridView.builder(
+        shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3, crossAxisSpacing: 2, mainAxisSpacing: 2),
+        itemCount: section.thumbs.length,
+        itemBuilder: (context, index) => _CloudThumbWidget(
+          thumb: section.thumbs[index], loadThumb: loadThumb, onTap: () => onTap(section.thumbs[index])),
+      ),
+    ]);
   }
 }
 
-// ── Thumbnail widget ──
+// ── Thumbnail widget with encryption badge ──
 
 class _CloudThumbWidget extends StatefulWidget {
   final _CloudThumb thumb;
   final Future<Uint8List?> Function(_CloudThumb) loadThumb;
   final VoidCallback onTap;
-
-  const _CloudThumbWidget({
-    required this.thumb,
-    required this.loadThumb,
-    required this.onTap,
-  });
-
+  const _CloudThumbWidget({required this.thumb, required this.loadThumb, required this.onTap});
   @override
   State<_CloudThumbWidget> createState() => _CloudThumbWidgetState();
 }
@@ -612,10 +457,7 @@ class _CloudThumbWidgetState extends State<_CloudThumbWidget> {
   bool _loading = true;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+  void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
     final data = await widget.loadThumb(widget.thumb);
@@ -626,17 +468,22 @@ class _CloudThumbWidgetState extends State<_CloudThumbWidget> {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: widget.onTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(2),
-        child: _loading
-            ? Container(color: Colors.grey.shade200, child: const Center(child: CircularProgressIndicator(strokeWidth: 2)))
-            : _data != null
-                ? Image.memory(_data!, fit: BoxFit.cover)
-                : Container(
-                    color: Colors.grey.shade200,
-                    child: const Icon(Icons.broken_image_outlined, color: Colors.grey, size: 32),
-                  ),
-      ),
+      child: Stack(fit: StackFit.expand, children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.xxs),
+          child: _loading
+              ? const EnpixSkeleton(width: 200, height: 200)
+              : _data != null
+                  ? Image.memory(_data!, fit: BoxFit.cover)
+                  : Container(color: AppColors.fillSecondary,
+                      child: const Icon(Icons.broken_image_outlined, color: AppColors.brandGray, size: 32)),
+        ),
+        // Encryption badge
+        Positioned(top: 4, right: 4,
+          child: Container(width: 20, height: 20,
+            decoration: BoxDecoration(color: AppColors.brandPurple.withAlpha(180), borderRadius: BorderRadius.circular(AppRadius.xxs)),
+            child: const Icon(Icons.lock_rounded, size: 12, color: Colors.white))),
+      ]),
     );
   }
 }
@@ -645,23 +492,15 @@ class _CloudThumbWidgetState extends State<_CloudThumbWidget> {
 
 class _FullScreenImage extends StatelessWidget {
   final Uint8List data;
-
   const _FullScreenImage({required this.data});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black54,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
+      appBar: AppBar(backgroundColor: Colors.black54, iconTheme: const IconThemeData(color: Colors.white)),
       body: Center(
-        child: InteractiveViewer(
-          minScale: 0.5,
-          maxScale: 5.0,
-          child: Image.memory(data, fit: BoxFit.contain),
-        ),
+        child: InteractiveViewer(minScale: 0.5, maxScale: 5.0, child: Image.memory(data, fit: BoxFit.contain)),
       ),
     );
   }
