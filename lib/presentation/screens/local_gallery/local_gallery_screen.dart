@@ -13,6 +13,7 @@ import 'package:see_photo/presentation/shared/widgets/enpix_error_state.dart';
 import 'package:see_photo/presentation/shared/widgets/enpix_progress.dart';
 import 'package:see_photo/presentation/shared/widgets/photo_viewer.dart';
 import 'package:see_photo/presentation/shared/widgets/backup_progress_widgets.dart';
+import 'package:see_photo/services/upload/backup_task.dart';
 
 /// Local photo browser — device photos grouped by day.
 ///
@@ -27,8 +28,7 @@ class LocalGalleryScreen extends ConsumerStatefulWidget {
   const LocalGalleryScreen({super.key});
 
   @override
-  ConsumerState<LocalGalleryScreen> createState() =>
-      _LocalGalleryScreenState();
+  ConsumerState<LocalGalleryScreen> createState() => _LocalGalleryScreenState();
 }
 
 class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
@@ -64,7 +64,10 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
     // Reset backup state when task completes — avoids side-effect in build().
     ref.listenManual(backupManagerProvider, (prev, next) {
       if (prev?.isDone != true && next.isDone) {
-        ref.read(backupManagerProvider.notifier).reset();
+        // Delay reset so the completion animation plays.
+        Future.delayed(const Duration(milliseconds: 2500), () {
+          if (mounted) ref.read(backupManagerProvider.notifier).reset();
+        });
       }
     });
   }
@@ -169,17 +172,17 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
 
     final deviceId = await ref.read(deviceServiceProvider).getDeviceId();
     ref.read(s3ServiceProvider).configure(
-      StorageConfig(
-        endpointUrl: endpointUrl,
-        bucketName: bucketName,
-        region: region,
-        accessKey: s3Creds.accessKey,
-        secretKey: s3Creds.secretKey,
-        updatedAt: DateTime.now().millisecondsSinceEpoch,
-      ),
-      kekFingerprint: await credService.getKekFingerprint(),
-      deviceId: deviceId,
-    );
+          StorageConfig(
+            endpointUrl: endpointUrl,
+            bucketName: bucketName,
+            region: region,
+            accessKey: s3Creds.accessKey,
+            secretKey: s3Creds.secretKey,
+            updatedAt: DateTime.now().millisecondsSinceEpoch,
+          ),
+          kekFingerprint: await credService.getKekFingerprint(),
+          deviceId: deviceId,
+        );
     return true;
   }
 
@@ -221,14 +224,16 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
             ),
             decoration: const BoxDecoration(
               color: AppColors.backgroundSecondary,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+              borderRadius:
+                  BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
                   margin: const EdgeInsets.only(top: AppSpacing.sm),
-                  width: 36, height: 5,
+                  width: 36,
+                  height: 5,
                   decoration: BoxDecoration(
                     color: AppColors.separatorOpaque,
                     borderRadius: BorderRadius.circular(2.5),
@@ -246,7 +251,9 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
                         if (task.currentFileName != null) ...[
                           const SizedBox(height: AppSpacing.md),
                           Text(task.currentFileName!,
-                              style: const TextStyle(color: AppColors.labelSecondary, fontSize: 13)),
+                              style: const TextStyle(
+                                  color: AppColors.labelSecondary,
+                                  fontSize: 13)),
                         ],
                         const SizedBox(height: AppSpacing.xl),
                         if (task.isRunning || task.totalBytes > 0)
@@ -257,18 +264,25 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
                           const SizedBox(height: AppSpacing.lg),
                           const Divider(),
                           const SizedBox(height: AppSpacing.lg),
-                          ErrorList(errors: task.errors, onReport: () async {
-                            try {
-                              await manager.reportErrors(task.errors);
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('错误报告已上传'), backgroundColor: AppColors.brandGreen),
-                                );
-                              }
-                            } catch (e) {
-                              if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('上传失败: $e')));
-                            }
-                          }),
+                          ErrorList(
+                              errors: task.errors,
+                              onReport: () async {
+                                try {
+                                  await manager.reportErrors(task.errors);
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content: Text('错误报告已上传'),
+                                          backgroundColor:
+                                              AppColors.brandGreen),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (mounted)
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('上传失败: $e')));
+                                }
+                              }),
                         ],
                       ],
                     ),
@@ -292,7 +306,8 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
       if (_filter == 'photos' && asset.type != AssetType.image) continue;
       if (_filter == 'videos' && asset.type != AssetType.video) continue;
       final date = asset.createDateTime;
-      final key = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+      final key =
+          '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
       groups.putIfAbsent(key, () => []);
       groups[key]!.add(asset);
     }
@@ -310,7 +325,8 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
 
   String _formatDateLabel(String key) {
     final parts = key.split('-');
-    final date = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+    final date =
+        DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
@@ -333,14 +349,18 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
   }
 
   void _exitSelection() {
-    setState(() { _selected.clear(); _selectionMode = false; });
+    setState(() {
+      _selected.clear();
+      _selectionMode = false;
+    });
   }
 
   void _openViewer(AssetEntity asset) {
     final idx = _assets.indexOf(asset);
     Navigator.of(context).push(
       PageRouteBuilder(
-        pageBuilder: (_, __, ___) => PhotoViewer(assets: _assets, initialIndex: idx),
+        pageBuilder: (_, __, ___) =>
+            PhotoViewer(assets: _assets, initialIndex: idx),
         transitionsBuilder: (_, animation, __, child) =>
             FadeTransition(opacity: animation, child: child),
         transitionDuration: AppDuration.normal,
@@ -357,7 +377,9 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
         actions: _selectionMode
             ? [
                 _SelectionCount(count: _selected.length),
-                IconButton(icon: const Icon(Icons.close_rounded), onPressed: _exitSelection),
+                IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: _exitSelection),
               ]
             : null,
       ),
@@ -367,26 +389,41 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
   }
 
   Widget _buildBody() {
-    if (_loadingPermission) return const EnpixLoadingState(message: '正在加载照片...');
-    if (_error) return EnpixErrorState(title: '无法加载照片', subtitle: _errorMsg, onRetry: _requestPermission);
+    if (_loadingPermission)
+      return const EnpixLoadingState(message: '正在加载照片...');
+    if (_error)
+      return EnpixErrorState(
+          title: '无法加载照片', subtitle: _errorMsg, onRetry: _requestPermission);
     if (!_hasPermission) {
       return EnpixEmptyState(
-        icon: Icons.photo_library_outlined, title: '需要照片访问权限',
+        icon: Icons.photo_library_outlined,
+        title: '需要照片访问权限',
         subtitle: '请在设置中允许 Enpix 访问照片',
-        action: FilledButton(onPressed: _requestPermission, child: const Text('授权')),
+        action: FilledButton(
+            onPressed: _requestPermission, child: const Text('授权')),
       );
     }
     if (_assets.isEmpty && !_loading) {
-      return const EnpixEmptyState(icon: Icons.photo_library_outlined, title: '还没有照片', subtitle: '拍摄照片后会显示在这里');
+      return const EnpixEmptyState(
+          icon: Icons.photo_library_outlined,
+          title: '还没有照片',
+          subtitle: '拍摄照片后会显示在这里');
     }
 
     return Column(
       children: [
-        _TypeFilter(current: _filter, onChanged: (v) { setState(() => _filter = v); _rebuildSections(); }),
+        _TypeFilter(
+            current: _filter,
+            onChanged: (v) {
+              setState(() => _filter = v);
+              _rebuildSections();
+            }),
         Expanded(
           child: NotificationListener<ScrollNotification>(
             onNotification: (n) {
-              if (n is ScrollEndNotification && n.metrics.pixels >= n.metrics.maxScrollExtent - 500) _loadMore();
+              if (n is ScrollEndNotification &&
+                  n.metrics.pixels >= n.metrics.maxScrollExtent - 500)
+                _loadMore();
               return false;
             },
             child: ListView.builder(
@@ -402,9 +439,15 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
                 }
                 final section = _sections[sectionIndex];
                 return _DaySectionWidget(
-                  section: section, selectionMode: _selectionMode,
-                  isSelected: (id) => _selected.contains(id), uploadedIds: _uploadedIds,
-                  onTap: (asset) { _selectionMode ? _toggleSelection(asset.id) : _openViewer(asset); },
+                  section: section,
+                  selectionMode: _selectionMode,
+                  isSelected: (id) => _selected.contains(id),
+                  uploadedIds: _uploadedIds,
+                  onTap: (asset) {
+                    _selectionMode
+                        ? _toggleSelection(asset.id)
+                        : _openViewer(asset);
+                  },
                   onLongPress: (asset) => _toggleSelection(asset.id),
                 );
               },
@@ -418,24 +461,15 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
   Widget? _buildFab() {
     if (!_hasPermission) return null;
     final task = ref.watch(backupManagerProvider);
-    if (task.isRunning) {
-      return FloatingActionButton(
-        onPressed: _showBackupProgress,
-        backgroundColor: AppColors.brandBlue,
-        child: Stack(
-          children: [
-            const Icon(Icons.cloud_upload_rounded, color: Colors.white),
-            Positioned(right: 0, bottom: 0,
-              child: Container(width: 12, height: 12,
-                decoration: const BoxDecoration(color: AppColors.brandGreen, shape: BoxShape.circle))),
-          ],
-        ),
-      );
+    if (task.isRunning || task.isDone) {
+      return _AnimatedBackupFab(task: task, onTap: _showBackupProgress);
     }
     if (_assets.isEmpty) return null;
     return FloatingActionButton(
-      onPressed: _startBackup, backgroundColor: AppColors.brandBlue,
-      child: const Icon(Icons.cloud_upload_rounded, color: Colors.white),
+      onPressed: _startBackup,
+      backgroundColor: AppColors.brandBlue,
+      child:
+          const Icon(Icons.cloud_upload_rounded, color: Colors.white, size: 24),
     );
   }
 }
@@ -446,7 +480,8 @@ class _DaySection {
   final String dateKey;
   final String label;
   final List<AssetEntity> assets;
-  const _DaySection({required this.dateKey, required this.label, required this.assets});
+  const _DaySection(
+      {required this.dateKey, required this.label, required this.assets});
 }
 
 // ── Type filter chips ──
@@ -467,7 +502,8 @@ class _TypeFilter extends StatelessWidget {
       height: 44,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
         children: filters.map((f) {
           final (key, label, icon) = f;
           final s = current == key;
@@ -475,13 +511,18 @@ class _TypeFilter extends StatelessWidget {
             padding: const EdgeInsets.only(right: AppSpacing.sm),
             child: FilterChip(
               selected: s,
-              avatar: Icon(icon, size: 16, color: s ? AppColors.brandBlue : AppColors.labelSecondary),
+              avatar: Icon(icon,
+                  size: 16,
+                  color: s ? AppColors.brandBlue : AppColors.labelSecondary),
               label: Text(label),
               onSelected: (_) => onChanged(key),
               selectedColor: AppColors.brandBlue.withAlpha(25),
-              labelStyle: TextStyle(fontSize: 14, fontWeight: s ? FontWeight.w600 : FontWeight.w500,
+              labelStyle: TextStyle(
+                  fontSize: 14,
+                  fontWeight: s ? FontWeight.w600 : FontWeight.w500,
                   color: s ? AppColors.brandBlue : AppColors.labelPrimary),
-              showCheckmark: false, side: BorderSide.none,
+              showCheckmark: false,
+              side: BorderSide.none,
             ),
           );
         }).toList(),
@@ -500,8 +541,13 @@ class _DaySectionWidget extends StatelessWidget {
   final void Function(AssetEntity) onTap;
   final void Function(AssetEntity) onLongPress;
 
-  const _DaySectionWidget({required this.section, required this.selectionMode, required this.isSelected,
-    required this.uploadedIds, required this.onTap, required this.onLongPress});
+  const _DaySectionWidget(
+      {required this.section,
+      required this.selectionMode,
+      required this.isSelected,
+      required this.uploadedIds,
+      required this.onTap,
+      required this.onLongPress});
 
   @override
   Widget build(BuildContext context) {
@@ -509,31 +555,47 @@ class _DaySectionWidget extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.sm),
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.sm),
           child: Row(
             children: [
-              Text(section.label, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700,
-                  color: AppColors.labelPrimary, letterSpacing: -0.5)),
+              Text(section.label,
+                  style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.labelPrimary,
+                      letterSpacing: -0.5)),
               const SizedBox(width: AppSpacing.sm),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
-                decoration: BoxDecoration(color: AppColors.fillSecondary, borderRadius: BorderRadius.circular(AppRadius.sm)),
-                child: Text('${section.assets.length}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.labelSecondary)),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
+                decoration: BoxDecoration(
+                    color: AppColors.fillSecondary,
+                    borderRadius: BorderRadius.circular(AppRadius.sm)),
+                child: Text('${section.assets.length}',
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.labelSecondary)),
               ),
             ],
           ),
         ),
         GridView.builder(
-          shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
           padding: const EdgeInsets.symmetric(horizontal: 2),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3, crossAxisSpacing: 2, mainAxisSpacing: 2),
+              crossAxisCount: 3, crossAxisSpacing: 2, mainAxisSpacing: 2),
           itemCount: section.assets.length,
           itemBuilder: (context, index) {
             final asset = section.assets[index];
-            return _AssetThumb(asset: asset, selected: isSelected(asset.id),
-              isUploaded: uploadedIds.contains(asset.id),
-              onTap: () => onTap(asset), onLongPress: () => onLongPress(asset));
+            return _AssetThumb(
+                asset: asset,
+                selected: isSelected(asset.id),
+                isUploaded: uploadedIds.contains(asset.id),
+                onTap: () => onTap(asset),
+                onLongPress: () => onLongPress(asset));
           },
         ),
       ],
@@ -548,7 +610,12 @@ class _AssetThumb extends StatefulWidget {
   final bool selected;
   final bool isUploaded;
   final VoidCallback? onTap, onLongPress;
-  const _AssetThumb({required this.asset, this.selected = false, this.isUploaded = false, this.onTap, this.onLongPress});
+  const _AssetThumb(
+      {required this.asset,
+      this.selected = false,
+      this.isUploaded = false,
+      this.onTap,
+      this.onLongPress});
   @override
   State<_AssetThumb> createState() => _AssetThumbState();
 }
@@ -557,36 +624,60 @@ class _AssetThumbState extends State<_AssetThumb> {
   Uint8List? _thumb;
 
   @override
-  void initState() { super.initState(); _loadThumb(); }
+  void initState() {
+    super.initState();
+    _loadThumb();
+  }
 
   Future<void> _loadThumb() async {
-    final data = await widget.asset.thumbnailDataWithSize(const ThumbnailSize(256, 256), format: ThumbnailFormat.jpeg);
+    final data = await widget.asset.thumbnailDataWithSize(
+        const ThumbnailSize(256, 256),
+        format: ThumbnailFormat.jpeg);
     if (mounted) setState(() => _thumb = data);
   }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: widget.onTap, onLongPress: widget.onLongPress,
+      onTap: widget.onTap,
+      onLongPress: widget.onLongPress,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          ClipRRect(borderRadius: BorderRadius.circular(AppRadius.xxs),
-            child: _thumb != null ? Image.memory(_thumb!, fit: BoxFit.cover) : Container(color: AppColors.fillSecondary)),
+          ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.xxs),
+              child: _thumb != null
+                  ? Image.memory(_thumb!, fit: BoxFit.cover)
+                  : Container(color: AppColors.fillSecondary)),
           if (widget.asset.type == AssetType.video)
-            Positioned(bottom: 4, left: 4, child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-              decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(3)),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.play_arrow_rounded, size: 14, color: Colors.white),
-                Text('${widget.asset.duration}s', style: const TextStyle(color: Colors.white, fontSize: 10)),
-              ]),
-            )),
+            Positioned(
+                bottom: 4,
+                left: 4,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(3)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.play_arrow_rounded,
+                        size: 14, color: Colors.white),
+                    Text('${widget.asset.duration}s',
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 10)),
+                  ]),
+                )),
           if (widget.isUploaded && !widget.selected)
-            Positioned(top: 4, right: 4,
-              child: Container(width: 16, height: 16,
-                decoration: const BoxDecoration(color: AppColors.brandGreen, shape: BoxShape.circle),
-                child: const Icon(Icons.cloud_done_rounded, size: 10, color: Colors.white))),
+            Positioned(
+                top: 4,
+                right: 4,
+                child: Container(
+                    width: 16,
+                    height: 16,
+                    decoration: const BoxDecoration(
+                        color: AppColors.brandGreen, shape: BoxShape.circle),
+                    child: const Icon(Icons.cloud_done_rounded,
+                        size: 10, color: Colors.white))),
           if (widget.selected)
             Container(
               decoration: BoxDecoration(
@@ -594,10 +685,13 @@ class _AssetThumbState extends State<_AssetThumb> {
                 border: Border.all(color: AppColors.brandBlue, width: 2),
                 borderRadius: BorderRadius.circular(AppRadius.xxs),
               ),
-              child: const Align(alignment: Alignment.topRight, child: Padding(
-                padding: EdgeInsets.all(4),
-                child: Icon(Icons.check_circle_rounded, color: AppColors.brandBlue, size: 22),
-              )),
+              child: const Align(
+                  alignment: Alignment.topRight,
+                  child: Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.check_circle_rounded,
+                        color: AppColors.brandBlue, size: 22),
+                  )),
             ),
         ],
       ),
@@ -605,18 +699,204 @@ class _AssetThumbState extends State<_AssetThumb> {
   }
 }
 
-// ── Selection count badge ──
+// ── Animated FAB ──
+
+/// Floating action button with animated upload arrow + progress arc + completion bounce.
+///
+/// States:
+/// - **idle**: blue FAB + cloud upload icon (handled by caller)
+/// - **running**: **green** FAB + cloud icon + arrow sliding upward (continuous flow) + progress arc
+/// - **completed**: green FAB + checkmark with elastic bounce-in
+class _AnimatedBackupFab extends StatefulWidget {
+  final BackupTask task;
+  final VoidCallback onTap;
+  const _AnimatedBackupFab({required this.task, required this.onTap});
+
+  @override
+  State<_AnimatedBackupFab> createState() => _AnimatedBackupFabState();
+}
+
+class _AnimatedBackupFabState extends State<_AnimatedBackupFab>
+    with TickerProviderStateMixin {
+  late AnimationController _arrowCtrl;
+  late AnimationController _doneCtrl;
+  late Animation<double> _doneScale;
+  late Animation<double> _arrowOffset;
+  late Animation<double> _arrowOpacity;
+  bool _wasDone = false;
+  bool _showCheckmark = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Arrow: slides from bottom of cloud to top, fading out, then resets.
+    _arrowCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 900));
+    _arrowOffset = Tween(begin: 10.0, end: -10.0).animate(
+      CurvedAnimation(parent: _arrowCtrl, curve: Curves.easeOut),
+    );
+    _arrowOpacity = Tween(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(
+          parent: _arrowCtrl,
+          curve: const Interval(0.3, 0.9, curve: Curves.easeOut)),
+    );
+
+    // Done: elastic bounce-in
+    _doneCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 500));
+    _doneScale = CurvedAnimation(parent: _doneCtrl, curve: Curves.easeOutBack);
+
+    if (widget.task.isRunning) _arrowCtrl.repeat();
+    _wasDone = widget.task.isDone;
+    if (_wasDone && widget.task.status == BackupStatus.completed) {
+      _showCheckmark = true;
+      _doneCtrl.forward();
+    }
+  }
+
+  @override
+  void didUpdateWidget(_AnimatedBackupFab old) {
+    super.didUpdateWidget(old);
+
+    final justCompleted = !_wasDone &&
+        widget.task.isDone &&
+        widget.task.status == BackupStatus.completed;
+    final justStarted = !_wasDone &&
+        widget.task.isRunning &&
+        (!old.task.isRunning || old.task.isDone);
+
+    if (justCompleted) {
+      _arrowCtrl.stop();
+      _arrowCtrl.reset();
+      _showCheckmark = true;
+      _doneCtrl.forward(from: 0.0);
+    } else if (justStarted) {
+      _showCheckmark = false;
+      _arrowCtrl.repeat();
+    }
+
+    _wasDone = widget.task.isDone;
+  }
+
+  @override
+  void dispose() {
+    _arrowCtrl.dispose();
+    _doneCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isGreen = widget.task.isRunning || _showCheckmark;
+    return FloatingActionButton(
+      onPressed: widget.onTap,
+      backgroundColor: isGreen ? AppColors.brandGreen : AppColors.brandBlue,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // ── Progress arc ring ──
+          SizedBox(
+            width: 36,
+            height: 36,
+            child: CircularProgressIndicator(
+              value: widget.task.progress,
+              strokeWidth: 2.5,
+              strokeCap: StrokeCap.round,
+              backgroundColor: Colors.white.withAlpha(35),
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          ),
+
+          // ── Running: cloud + animated upward arrow ──
+          if (widget.task.isRunning)
+            SizedBox(
+              width: 22,
+              height: 24,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Center(
+                    child: Icon(Icons.cloud_rounded,
+                        color: Colors.white, size: 22),
+                  ),
+                  // Arrow A — slides from bottom to top
+                  Positioned.fill(
+                    child: AnimatedBuilder(
+                      animation: _arrowCtrl,
+                      builder: (context, child) {
+                        return Transform.translate(
+                          offset: Offset(0, _arrowOffset.value),
+                          child: Opacity(
+                            opacity: _arrowOpacity.value,
+                            child: const Icon(Icons.arrow_upward_rounded,
+                                color: Colors.white, size: 12),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  // Arrow B — half-cycle offset for continuous feel
+                  Positioned.fill(
+                    child: AnimatedBuilder(
+                      animation: _arrowCtrl,
+                      builder: (context, child) {
+                        // Phase-shifted: starts disappearing as A begins
+                        final t = (_arrowCtrl.value + 0.5) % 1.0;
+                        final offset = 10.0 - 20.0 * t;
+                        final opacity = t < 0.3
+                            ? 1.0
+                            : (t < 0.9 ? 1.0 - (t - 0.3) / 0.6 : 0.0);
+                        return Transform.translate(
+                          offset: Offset(0, offset),
+                          child: Opacity(
+                            opacity: opacity,
+                            child: const Icon(Icons.arrow_upward_rounded,
+                                color: Colors.white, size: 12),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // ── Completed: checkmark bounce ──
+          if (_showCheckmark)
+            AnimatedBuilder(
+              animation: _doneScale,
+              builder: (context, child) {
+                return Transform.scale(
+                  scale: _doneScale.value,
+                  child: const Icon(Icons.check_circle_rounded,
+                      color: Colors.white, size: 22),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
 
 class _SelectionCount extends StatelessWidget {
   final int count;
   const _SelectionCount({required this.count});
   @override
   Widget build(BuildContext context) => Center(
-    child: Container(
-      margin: const EdgeInsets.only(right: AppSpacing.sm),
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
-      decoration: BoxDecoration(color: AppColors.brandBlue.withAlpha(25), borderRadius: BorderRadius.circular(AppRadius.sm)),
-      child: Text('已选 $count', style: const TextStyle(color: AppColors.brandBlue, fontWeight: FontWeight.w600, fontSize: 14)),
-    ),
-  );
+        child: Container(
+          margin: const EdgeInsets.only(right: AppSpacing.sm),
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
+          decoration: BoxDecoration(
+              color: AppColors.brandBlue.withAlpha(25),
+              borderRadius: BorderRadius.circular(AppRadius.sm)),
+          child: Text('已选 $count',
+              style: const TextStyle(
+                  color: AppColors.brandBlue,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14)),
+        ),
+      );
 }
