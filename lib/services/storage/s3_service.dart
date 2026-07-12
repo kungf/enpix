@@ -19,13 +19,13 @@ class S3Service {
           receiveTimeout: const Duration(seconds: 300),
         )) {
     // Reuse TCP connections — avoids handshake per request during bulk upload.
-    // Accept-Encoding: identity prevents S3/MinIO from gzip-compressing LIST
-    // responses, which would break XmlDocument.parse (it expects plain XML).
     (_dio.httpClientAdapter as DefaultHttpClientAdapter).onHttpClientCreate =
         (client) {
       client.idleTimeout = const Duration(seconds: 30);
     };
-    _dio.options.headers['Accept-Encoding'] = 'identity';
+    // autoUncompress must be true (the default) so that S3/MinIO gzip-compressed
+    // XML responses (LIST results > threshold) are auto-decompressed by the
+    // HTTP transport. S3 only compresses text/xml, never binary content.
   }
   StorageConfig? _config;
   String? _kekFingerprint;
