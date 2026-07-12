@@ -34,7 +34,10 @@ test/env.test
 .pub-cache/
 .pub/
 /build/
+/ios/build/
 /coverage/
+.claude/
+test/integration/debug_*.dart
 
 # Symbolication related
 app.*.symbols
