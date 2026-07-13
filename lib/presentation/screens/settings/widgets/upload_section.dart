@@ -51,16 +51,91 @@ class _UploadSectionState extends State<UploadSection> {
               Text('拍摄于 ${_delayDays.toInt()} ${_unitHours ? '小时' : '天'}前',
                   style: const TextStyle(fontSize: 13, color: AppColors.labelSecondary)),
               const Spacer(),
-              ChoiceChip(label: const Text('小时'), selected: _unitHours,
-                onSelected: (_) => setState(() { _unitHours = true; if (_delayDays > 72) _delayDays = 72; })),
-              const SizedBox(width: AppSpacing.xs),
-              ChoiceChip(label: const Text('天'), selected: !_unitHours,
-                onSelected: (_) => setState(() => _unitHours = false)),
+              _UnitSegment(
+                isHours: _unitHours,
+                onChanged: (hours) => setState(() {
+                  _unitHours = hours;
+                  if (hours && _delayDays > 72) _delayDays = 72;
+                }),
+              ),
             ],
           ),
+          const SizedBox(height: AppSpacing.xs),
           Slider(value: _delayDays, min: 0, max: _unitHours ? 72 : 365, divisions: _unitHours ? 72 : 73,
             onChanged: (v) => setState(() => _delayDays = v)),
         ],
+      ),
+    );
+  }
+}
+
+/// iOS 18-style inline segmented toggle for hours/days unit selection.
+class _UnitSegment extends StatelessWidget {
+  final bool isHours;
+  final ValueChanged<bool> onChanged;
+
+  const _UnitSegment({required this.isHours, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 28,
+      decoration: BoxDecoration(
+        color: AppColors.fillPrimary,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _UnitSegmentButton(
+            label: '小时',
+            selected: isHours,
+            onTap: () => onChanged(true),
+          ),
+          _UnitSegmentButton(
+            label: '天',
+            selected: !isHours,
+            onTap: () => onChanged(false),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UnitSegmentButton extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _UnitSegmentButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 48,
+        padding: EdgeInsets.zero,
+        alignment: Alignment.center,
+        height: 28,
+        decoration: BoxDecoration(
+          color: selected ? AppColors.brandBlue : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: selected ? Colors.white : AppColors.labelPrimary,
+          ),
+        ),
       ),
     );
   }
