@@ -8,86 +8,90 @@ import 'package:see_photo/presentation/shared/widgets/enpix_list_tile.dart';
 import 'package:see_photo/presentation/screens/settings/dialogs/setup_password_dialog.dart';
 import 'package:see_photo/presentation/screens/settings/dialogs/unlock_and_reset_dialogs.dart';
 
-/// Security section — encryption key management.
-class SecuritySection extends ConsumerWidget {
+/// Encryption passphrase section — controls the passphrase that protects
+/// end-to-end encrypted cloud photos.
+class SecuritySection extends ConsumerStatefulWidget {
   const SecuritySection({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final credService = ref.read(credentialServiceProvider);
+  ConsumerState<SecuritySection> createState() => _SecuritySectionState();
+}
+
+class _SecuritySectionState extends ConsumerState<SecuritySection> {
+  @override
+  Widget build(BuildContext context) {
+    final cred = ref.watch(credentialServiceProvider);
+    final isActive = cred.isSessionActive;
 
     return EnpixSection(
-      header: '安全',
+      header: '数据加密',
       children: [
-        const EnpixListTile(
-          icon: Icons.key_rounded, iconColor: AppColors.brandPurple,
-          title: '加密算法', subtitle: 'XChaCha20-Poly1305 + Argon2id + BLAKE2b',
-        ),
-        _PassphraseTile(credService: credService),
-        const EnpixListTile(
-          icon: Icons.vpn_key_rounded, iconColor: AppColors.brandGray,
-          title: 'S3 凭证', subtitle: '保存时自动用密码加密',
+        EnpixListTile(
+          icon: Icons.lock_rounded,
+          iconColor: isActive ? AppColors.brandGreen : AppColors.brandGray,
+          title: '加密密码',
+          subtitle: isActive ? '已设置' : '未设置',
+          trailing: isActive
+              ? TextButton(
+                  onPressed: _changePassphrase,
+                  child: const Text('修改', style: TextStyle(fontSize: 15)),
+                )
+              : FilledButton.tonal(
+                  onPressed: _setupPassphrase,
+                  child: const Text('设置'),
+                ),
         ),
       ],
     );
   }
-}
 
-class _PassphraseTile extends ConsumerWidget {
-  final CredentialService credService;
-  const _PassphraseTile({required this.credService});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final active = credService.isSessionActive;
-    return EnpixListTile(
-      icon: Icons.lock_rounded,
-      iconColor: active ? AppColors.brandGreen : AppColors.brandGray,
-      title: active ? '加密密钥' : '设置加密密码',
-      subtitle: active ? '已解锁' : '已锁定',
-      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-        if (active)
-          IconButton(
-            icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.brandRed),
-            onPressed: () => _reset(context, ref),
-            tooltip: '重置',
-          )
-        else
-          FilledButton.tonal(onPressed: () => _unlockOrSetup(context, ref), child: const Text('解锁')),
-      ]),
-    );
-  }
-
-  Future<void> _unlockOrSetup(BuildContext context, WidgetRef ref) async {
+  Future<void> _setupPassphrase() async {
     final cred = ref.read(credentialServiceProvider);
-    final hasPw = await cred.hasPassphrase();
-    if (hasPw) {
-      final pw = await showUnlockDialog(context);
-      if (pw == null || pw.isEmpty) return;
-      try {
-        await cred.unlockWithPassphrase(pw);
-        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('已解锁'), backgroundColor: AppColors.brandGreen));
-      } on Exception {
-        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('密码错误')));
-      }
-    } else {
-      final pw = await showSetupPasswordDialog(context);
-      if (pw == null || pw.isEmpty) return;
+    final pw = await showSetupPasswordDialog(context);
+    if (pw == null || pw.isEmpty) return;
+    try {
       final kek = await cred.setupPassphrase(pw);
       cred.startSession(kek);
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('密码已设置'), backgroundColor: AppColors.brandGreen));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('加密密码已设置'), backgroundColor: AppColors.brandGreen));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('设置失败: $e'), backgroundColor: AppColors.brandRed));
+      }
     }
   }
 
-  Future<void> _reset(BuildContext context, WidgetRef ref) async {
-    final ok = await showResetDialog(context);
-    if (ok == true) {
-      await ref.read(credentialServiceProvider).resetAll();
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已重置')));
+  Future<void> _changePassphrase() async {
+    final cred = ref.read(credentialServiceProvider);
+    final oldPw = await showUnlockDialog(context);
+    if (oldPw == null || oldPw.isEmpty) return;
+    try {
+      await cred.verifyPassphrase(oldPw);
+    } on Exception {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('密码错误'), backgroundColor: AppColors.brandRed));
+      }
+      return;
+    }
+
+    final newPw = await showSetupPasswordDialog(context);
+    if (newPw == null || newPw.isEmpty) return;
+
+    try {
+      await cred.changePassphrase(oldPw, newPw);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('密码已更新'), backgroundColor: AppColors.brandGreen));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('修改失败: $e'), backgroundColor: AppColors.brandRed));
+      }
     }
   }
 }

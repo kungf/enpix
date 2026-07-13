@@ -438,8 +438,8 @@ class _SystemStatusCard extends ConsumerWidget {
           const SizedBox(height: AppSpacing.md),
           _StatusRow(
             icon: Icons.lock_rounded,
-            label: '加密密钥',
-            status: isSessionActive ? '已解锁' : '未解锁',
+            label: '数据加密',
+            status: isSessionActive ? '已就绪' : '未就绪',
             statusColor:
                 isSessionActive ? AppColors.brandGreen : AppColors.brandOrange,
           ),
@@ -458,13 +458,6 @@ class _SystemStatusCard extends ConsumerWidget {
             label: '本地清理',
             status: '按需运行',
             statusColor: AppColors.labelSecondary,
-          ),
-          const Divider(indent: 0),
-          _StatusRow(
-            icon: Icons.shield_rounded,
-            label: '加密算法',
-            status: 'XChaCha20-Poly1305',
-            statusColor: AppColors.brandPurple,
           ),
         ],
       ),

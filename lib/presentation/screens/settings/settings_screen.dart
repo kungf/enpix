@@ -54,9 +54,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
         children: const [
-          SecuritySection(),
           UploadSection(),
           TtlSection(),
+          SecuritySection(),
           StorageSection(),
           AboutSection(),
           SizedBox(height: AppSpacing.xxxxl),

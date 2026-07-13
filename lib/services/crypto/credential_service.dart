@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:logging/logging.dart';
@@ -7,23 +6,27 @@ import 'crypto_service.dart';
 
 /// Service for securely storing and retrieving user credentials.
 ///
-/// Implements Plan C layered encryption:
+/// Keychain stores:
+///   - AK/SK — plaintext (iOS Keychain / Android EncryptedSharedPreferences
+///     provide hardware-backed encryption at rest — no per-user KEK wrapping
+///     needed for local credential storage)
+///   - KEK — derived from passphrase via Argon2id, held in memory during
+///     active session, used to wrap/unwrap per-photo DEKs for end-to-end
+///     photo encryption
 ///
-///   AK/SK ──► XChaCha20(KEK) ──► Keychain
-///   KEK    ──► Secure Enclave   ──► Keychain
-///
-/// - AK/SK never stored in plaintext on disk
-/// - KEK wrapped by hardware-backed device key (Secure Enclave / StrongBox)
-/// - Session: KEK held in memory for background backup tasks
-/// - After reboot: require Face ID or passphrase to unlock
+/// Session model:
+///   - On app start: autoUnlock() re-derives KEK from saved passphrase
+///   - Session KEK must be in memory to upload new photos or decrypt cloud photos
+///   - S3 connection (AK/SK) does NOT require a session — credentials are
+///     always readable from Keychain
 class CredentialService {
   final Logger _log = Logger('CredentialService');
   final CryptoService _crypto;
   final FlutterSecureStorage _storage;
 
-  // Keychain keys (not the encryption keys themselves)
-  static const _encryptedAkKey = 'encrypted_access_key';
-  static const _encryptedSkKey = 'encrypted_secret_key';
+  // Keychain keys
+  static const _akKey = 'access_key_v2';
+  static const _skKey = 'secret_key_v2';
   static const _wrappedKekKey = 'wrapped_kek_v1';
   static const _kekSaltKey = 'kek_salt_v1';
   static const _kekFingerprintKey = 'kek_fingerprint_v1';
@@ -163,34 +166,30 @@ class CredentialService {
     }
   }
 
-  /// Change the passphrase: re-encrypt existing credentials with new KEK.
+  /// Change the passphrase: set up new KEK (old KEK no longer wraps S3
+  /// credentials — they are stored plaintext in Keychain).
   Future<void> changePassphrase(String oldPassphrase, String newPassphrase) async {
     _log.info('Changing passphrase...');
 
-    // Unlock with old KEK
+    // Read existing S3 credentials before ending the old session.
+    final creds = await loadS3Credentials();
+
+    // Unlock with old KEK to verify the old password is correct.
     final oldKek = await unlockWithPassphrase(oldPassphrase);
 
-    // Get existing encrypted credentials
-    final encryptedAk = await _storage.read(key: _encryptedAkKey);
-    final encryptedSk = await _storage.read(key: _encryptedSkKey);
-
-    // Decrypt with old KEK
-    String? ak, sk;
-    if (encryptedAk != null && encryptedSk != null) {
-      ak = await _decryptString(encryptedAk, oldKek);
-      sk = await _decryptString(encryptedSk, oldKek);
-    }
-
-    // End old session before setting up new passphrase
+    // End old session, then zero the local reference. The KEK bytes are shared
+    // with _sessionKek, so we must null _sessionKek first (in endSession)
+    // before freeing the memory.
     endSession();
+    _crypto.secureFree(oldKek);
 
-    // Set up new passphrase and get new KEK
+    // Set up new passphrase.
     final newKek = await setupPassphrase(newPassphrase);
-
-    // Start session with new KEK, then re-encrypt credentials
     startSession(newKek);
-    if (ak != null && sk != null) {
-      await saveS3Credentials(ak, sk);
+
+    // Re-save S3 credentials (now as plaintext under the new session).
+    if (creds != null) {
+      await saveS3Credentials(creds.accessKey, creds.secretKey);
     }
 
     endSession();
@@ -199,36 +198,18 @@ class CredentialService {
 
   // ── S3 Credential Storage ────────────────────────────────────
 
-  /// Save S3 credentials. AK stored in plaintext, SK encrypted with KEK.
+  /// Save S3 credentials to Keychain (hardware-encrypted by the platform).
   Future<void> saveS3Credentials(String accessKey, String secretKey) async {
-    if (!isSessionActive) throw StateError('KEK session not active');
-
-    // AK — plaintext
-    await _storage.write(key: _encryptedAkKey, value: accessKey);
-
-    // SK — encrypted
-    final nonce = _crypto.generateNonce();
-    final encryptedSk = await _crypto.encrypt(
-      Uint8List.fromList(utf8.encode(secretKey)),
-      _sessionKek!,
-      nonce,
-    );
-    await _storage.write(key: _encryptedSkKey, value: CryptoService.b64Encode(encryptedSk));
-
-    _log.info('S3 credentials saved (AK plain, SK encrypted)');
+    await _storage.write(key: _akKey, value: accessKey);
+    await _storage.write(key: _skKey, value: secretKey);
+    _log.info('S3 credentials saved');
   }
 
-  /// Load S3 credentials. AK from plaintext, SK decrypted with KEK.
+  /// Load S3 credentials directly from Keychain.
   Future<({String accessKey, String secretKey})?> loadS3Credentials() async {
-    final ak = await _storage.read(key: _encryptedAkKey);
-    if (ak == null) return null;
-
-    // SK requires KEK session to decrypt.
-    if (!isSessionActive) throw StateError('KEK session not active');
-    final encryptedSk = await _storage.read(key: _encryptedSkKey);
-    if (encryptedSk == null) return null;
-
-    final sk = await _decryptString(encryptedSk, _sessionKek!);
+    final ak = await _storage.read(key: _akKey);
+    final sk = await _storage.read(key: _skKey);
+    if (ak == null || sk == null) return null;
     return (accessKey: ak, secretKey: sk);
   }
 
@@ -239,7 +220,7 @@ class CredentialService {
 
   /// Whether S3 credentials have been saved.
   Future<bool> hasS3Credentials() async {
-    final ak = await _storage.read(key: _encryptedAkKey);
+    final ak = await _storage.read(key: _akKey);
     return ak != null;
   }
 
@@ -265,24 +246,15 @@ class CredentialService {
 
   /// Delete stored S3 credentials.
   Future<void> deleteS3Credentials() async {
-    await _storage.delete(key: _encryptedAkKey);
-    await _storage.delete(key: _encryptedSkKey);
+    await _storage.delete(key: _akKey);
+    await _storage.delete(key: _skKey);
     _log.warning('S3 credentials deleted');
   }
 
-  // ── Helpers ──────────────────────────────────────────────────
-
-  Future<String> _decryptString(String encryptedB64, Uint8List kek) async {
-    final encrypted = CryptoService.b64Decode(encryptedB64);
-    final plain = await _crypto.decrypt(encrypted, kek);
-    return utf8.decode(plain);
-  }
-
-  /// Reset everything — delete all keys and credentials.
   Future<void> resetAll() async {
     endSession();
-    await _storage.delete(key: _encryptedAkKey);
-    await _storage.delete(key: _encryptedSkKey);
+    await _storage.delete(key: _akKey);
+    await _storage.delete(key: _skKey);
     await _storage.delete(key: _wrappedKekKey);
     await _storage.delete(key: _kekSaltKey);
     await _storage.delete(key: _kekFingerprintKey);

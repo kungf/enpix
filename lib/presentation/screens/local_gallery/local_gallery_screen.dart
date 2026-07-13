@@ -198,7 +198,7 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
     if (!credService.isSessionActive) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('请先在设置中解锁密钥')),
+          const SnackBar(content: Text('请先在设置中设置加密密码')),
         );
       }
       return;

@@ -112,14 +112,6 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
       final s3 = ref.read(s3ServiceProvider);
 
       if (!s3.isConfigured) {
-        if (!credService.isSessionActive) {
-          setState(() {
-            _loading = false;
-            _error = true;
-            _needPassphrase = true;
-          });
-          return;
-        }
         final endpointUrl = await credService.getS3Endpoint() ?? '';
         final bucketName = await credService.getS3Bucket() ?? '';
         if (endpointUrl.isEmpty || bucketName.isEmpty) {
@@ -284,7 +276,7 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
       if (!credService.isSessionActive) {
         if (mounted)
           ScaffoldMessenger.of(context)
-              .showSnackBar(const SnackBar(content: Text('请先在设置中创建加密密码')));
+              .showSnackBar(const SnackBar(content: Text('请先在设置中设置加密密码')));
         return;
       }
       if (mounted)
@@ -416,8 +408,8 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
       if (_needPassphrase) {
         return EnpixEmptyState(
             icon: Icons.lock_outline_rounded,
-            title: '需要设置加密密钥',
-            subtitle: 'Enpix 使用端到端加密保护你的照片\n请前往设置 → 安全中创建加密密码',
+            title: '需要设置加密密码',
+            subtitle: 'Enpix 使用端到端加密保护你的照片\n请前往设置 → 数据加密中设置密码',
             action: FilledButton.icon(
                 onPressed: widget.onNavigateToSettings,
                 icon: const Icon(Icons.settings_rounded, size: 18),

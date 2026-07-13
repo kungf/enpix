@@ -26,9 +26,9 @@ class _UnlockDialogState extends State<_UnlockDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('解锁密钥'),
+      title: const Text('输入密码'),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Text('输入密码以解锁 KEK 会话'),
+        const Text('请输入加密密码以继续'),
         const SizedBox(height: AppSpacing.lg),
         TextField(
           controller: _ctrl, obscureText: _obscure,
@@ -42,7 +42,7 @@ class _UnlockDialogState extends State<_UnlockDialog> {
       ]),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
-        FilledButton(onPressed: () => Navigator.pop(context, _ctrl.text), child: const Text('解锁')),
+        FilledButton(onPressed: () => Navigator.pop(context, _ctrl.text), child: const Text('确定')),
       ],
     );
   }

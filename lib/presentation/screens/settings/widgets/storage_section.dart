@@ -82,23 +82,19 @@ class _StorageSectionState extends ConsumerState<StorageSection> {
     await cred.saveS3Endpoint(ep);
     await cred.saveS3Bucket(bk);
     await cred.saveS3Region(rg.isNotEmpty ? rg : 'default');
-    if (cred.isSessionActive) {
-      final ak = _akCtrl.text.trim();
-      final sk = _skCtrl.text.trim();
-      if (ak.isEmpty || sk.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Access Key 和 Secret Key 不能为空')));
-        return;
-      }
-      try {
-        await cred.saveS3Credentials(ak, sk);
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('S3 凭证已加密保存'), backgroundColor: AppColors.brandGreen));
-      } catch (e) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('保存失败: $e'), backgroundColor: AppColors.brandRed));
-      }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('建议先设置密码再保存凭证')));
+    final ak = _akCtrl.text.trim();
+    final sk = _skCtrl.text.trim();
+    if (ak.isEmpty || sk.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Access Key 和 Secret Key 不能为空')));
+      return;
+    }
+    try {
+      await cred.saveS3Credentials(ak, sk);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('S3 凭证已保存'), backgroundColor: AppColors.brandGreen));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('保存失败: $e'), backgroundColor: AppColors.brandRed));
     }
   }
 
