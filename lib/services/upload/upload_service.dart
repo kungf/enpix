@@ -32,7 +32,7 @@ class UploadService {
     required String fileName,
     required String mimeType,
     required DateTime createdAt,
-    required Uint8List kek,
+    required Uint8List masterKey,
     bool Function() isCancelled = _neverCancelled,
   }) async {
     _log.info('Uploading: $fileName (${plaintext.length} bytes)');
@@ -85,10 +85,10 @@ class UploadService {
 
     if (isCancelled()) throw const UploadCancelledException();
 
-    // 6. Wrap DEK with KEK
+    // 6. Wrap DEK with Master Key
     Uint8List wrappedDek;
     try {
-      wrappedDek = await _crypto.wrapKey(dek, kek);
+      wrappedDek = await _crypto.wrapKey(dek, masterKey);
     } finally {
       _crypto.secureFree(dek);
     }
@@ -118,10 +118,10 @@ class UploadService {
     if (thumbJpeg != null) {
       try {
         final thumbNonce = _crypto.generateNonce();
-        // Use a fresh DEK for thumbnail, wrapped with same KEK
+        // Use a fresh DEK for thumbnail, wrapped with same Master Key
         final thumbDek = _crypto.generateDek();
         final encryptedThumb = await _crypto.encrypt(thumbJpeg, thumbDek, thumbNonce);
-        final wrappedThumbDek = await _crypto.wrapKey(thumbDek, kek);
+        final wrappedThumbDek = await _crypto.wrapKey(thumbDek, masterKey);
         _crypto.secureFree(thumbDek);
 
         _log.info('PUT thumb to S3: $thumbKey (${encryptedThumb.length} bytes)');

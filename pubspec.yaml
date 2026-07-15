@@ -1,4 +1,4 @@
-name: see_photo
+name: enpix
 description: Cross-platform photo archiving app with end-to-end encryption and S3 backend.
 version: 0.1.0+1
 publish_to: none
@@ -22,6 +22,9 @@ dependencies:
 
   # Cryptography — pure Dart
   cryptography: ^2.7.0
+
+  # BIP-39 mnemonic for recovery key
+  bip39: ^1.0.6
 
   # HTTP / S3 client
   dio: ^5.4.0

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:see_photo/core/theme/app_colors.dart';
-import 'package:see_photo/core/theme/app_spacing.dart';
+import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/app_spacing.dart';
 
 /// Skeleton / shimmer placeholder for async content loading.
 class EnpixSkeleton extends StatefulWidget {

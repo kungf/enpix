@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:see_photo/app.dart';
+import 'package:enpix/app.dart';
 
 void main() {
   testWidgets('App renders main screen with navigation tabs', (WidgetTester tester) async {

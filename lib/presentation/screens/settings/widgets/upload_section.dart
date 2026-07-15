@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:see_photo/core/theme/app_colors.dart';
-import 'package:see_photo/core/theme/app_spacing.dart';
-import 'package:see_photo/presentation/shared/widgets/enpix_section.dart';
+import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/app_spacing.dart';
+import 'package:enpix/presentation/shared/widgets/enpix_section.dart';
 
 /// Upload configuration section — delay threshold, WiFi-only toggle.
 class UploadSection extends StatefulWidget {

@@ -6,8 +6,8 @@
 
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:see_photo/domain/entities/storage_config.dart';
-import 'package:see_photo/services/storage/s3_service.dart';
+import 'package:enpix/domain/entities/storage_config.dart';
+import 'package:enpix/services/storage/s3_service.dart';
 
 final _endpoint = Platform.environment['S3_ENDPOINT'] ?? 'http://localhost:9000';
 final _bucket = Platform.environment['S3_BUCKET'] ?? 'test';

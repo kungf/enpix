@@ -6,7 +6,7 @@
 
 import 'dart:convert';
 import 'dart:io';
-import 'package:see_photo/services/ttl/ttl_config.dart';
+import 'package:enpix/services/ttl/ttl_config.dart';
 
 void main() async {
   int passed = 0, failed = 0;

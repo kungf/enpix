@@ -27,7 +27,8 @@ class CredentialService {
   // Keychain keys
   static const _akKey = 'access_key_v2';
   static const _skKey = 'secret_key_v2';
-  static const _wrappedKekKey = 'wrapped_kek_v1';
+  // NOTE: KEK is stored plaintext (Keychain is hardware-encrypted at rest).
+  static const _kekKey = 'wrapped_kek_v1'; // key name kept for backward compat
   static const _kekSaltKey = 'kek_salt_v1';
   static const _kekFingerprintKey = 'kek_fingerprint_v1';
   static const _hasPassphraseKey = 'has_passphrase';
@@ -36,19 +37,28 @@ class CredentialService {
   static const _s3BucketKey = 's3_bucket';
   static const _s3RegionKey = 's3_region';
 
+  // Master Key chain keys (v2 — introduced with recovery key support)
+  static const _wrappedMasterKeyKey = 'wrapped_master_key_v1';
+  static const _argon2MemoryKey = 'argon2_memory_v1';
+  static const _argon2OpsKey = 'argon2_ops_v1';
+
   // Session state
   Uint8List? _sessionKek;
+  Uint8List? _sessionMasterKey;
   bool _sessionActive = false;
 
   /// The current session KEK. Null if session not active.
   Uint8List? get sessionKek => _sessionActive ? _sessionKek : null;
 
+  /// The current session Master Key. Null if session not active.
+  Uint8List? get sessionMasterKey => _sessionActive ? _sessionMasterKey : null;
+
   CredentialService(this._crypto, this._storage);
 
   // ── Session Management ───────────────────────────────────────
 
-  /// Whether a KEK session is currently active.
-  bool get isSessionActive => _sessionActive && _sessionKek != null;
+  /// Whether a session is currently active (either via password unlock or recovery key).
+  bool get isSessionActive => _sessionActive && _sessionMasterKey != null;
 
   /// Start a session by providing the unwrapped KEK.
   /// The KEK is held in memory until [endSession] is called or the app terminates.
@@ -58,14 +68,18 @@ class CredentialService {
     _log.info('KEK session started');
   }
 
-  /// End the session and zero the KEK from memory.
+  /// End the session and zero KEK + Master Key from memory.
   void endSession() {
     if (_sessionKek != null) {
       _crypto.secureFree(_sessionKek!);
       _sessionKek = null;
     }
+    if (_sessionMasterKey != null) {
+      _crypto.secureFree(_sessionMasterKey!);
+      _sessionMasterKey = null;
+    }
     _sessionActive = false;
-    _log.info('KEK session ended');
+    _log.info('Session ended (KEK + Master Key zeroed)');
   }
 
   // ── Passphrase Setup ─────────────────────────────────────────
@@ -76,38 +90,51 @@ class CredentialService {
     return val == 'true';
   }
 
-  /// Set up a new passphrase: derive KEK, wrap with device key, store.
-  /// Returns the derived KEK so callers (e.g. [changePassphrase]) can use it
-  /// before it is zeroed. The caller is responsible for starting a session.
+  /// Set up a new passphrase: derive KEK (adaptive params), generate Master Key,
+  /// wrap Master Key with KEK, store everything. Returns the derived KEK so
+  /// callers (e.g. [changePassphrase]) can use it before it is zeroed.
   Future<Uint8List> setupPassphrase(String passphrase) async {
     _log.info('Setting up passphrase...');
 
     // Generate salt
     final salt = _crypto.generateSalt();
 
-    // Derive KEK
-    final kek = await _crypto.deriveKek(passphrase, salt);
+    // Probe adaptive Argon2id params
+    final params = await _crypto.probeArgon2Params(passphrase, salt);
+    _log.info('Adaptive Argon2id: memory=${params.memory} KiB, ops=${params.ops}');
+
+    // Derive KEK with probed params
+    final kek = await _crypto.deriveKekWithParams(
+      passphrase, salt,
+      memory: params.memory,
+      iterations: params.ops,
+    );
 
     // Compute fingerprint for verification
     final fingerprint = await _crypto.computeFingerprint(kek);
 
-    // In production: wrap KEK with Secure Enclave device key
-    // For now: store directly (Keychain is already encrypted by OS)
-    final wrappedKek = kek;
+    // Generate Master Key (random, never changes)
+    final masterKey = _crypto.generateMasterKey();
+
+    // Wrap Master Key with KEK
+    final wrappedMk = await _crypto.wrapKey(masterKey, kek);
 
     // Store to Keychain
     await _storage.write(key: _kekSaltKey, value: CryptoService.b64Encode(salt));
-    await _storage.write(key: _wrappedKekKey, value: CryptoService.b64Encode(wrappedKek));
+    await _storage.write(key: _kekKey, value: CryptoService.b64Encode(kek));
     await _storage.write(key: _kekFingerprintKey, value: fingerprint);
     await _storage.write(key: _hasPassphraseKey, value: 'true');
+    await _storage.write(key: _wrappedMasterKeyKey, value: CryptoService.b64Encode(wrappedMk));
+    await _storage.write(key: _argon2MemoryKey, value: params.memory.toString());
+    await _storage.write(key: _argon2OpsKey, value: params.ops.toString());
 
-    _log.info('Passphrase setup complete');
+    _log.info('Passphrase setup complete (adaptive params, Master Key generated)');
     return kek;
   }
 
   // ── KEK Unlock ───────────────────────────────────────────────
 
-  /// Unlock the KEK using the passphrase.
+  /// Unlock the KEK and Master Key using the passphrase.
   /// Returns the unwrapped KEK (caller must call startSession or zero after use).
   Future<Uint8List> unlockWithPassphrase(String passphrase) async {
     final saltB64 = await _storage.read(key: _kekSaltKey);
@@ -118,7 +145,22 @@ class CredentialService {
     }
 
     final salt = CryptoService.b64Decode(saltB64);
-    final kek = await _crypto.deriveKek(passphrase, salt);
+
+    // Try adaptive params first, fall back to legacy fixed params.
+    final memStr = await _storage.read(key: _argon2MemoryKey);
+    final opsStr = await _storage.read(key: _argon2OpsKey);
+
+    Uint8List kek;
+    if (memStr != null && opsStr != null) {
+      kek = await _crypto.deriveKekWithParams(
+        passphrase, salt,
+        memory: int.parse(memStr),
+        iterations: int.parse(opsStr),
+      );
+    } else {
+      // Legacy user — use fixed params.
+      kek = await _crypto.deriveKek(passphrase, salt);
+    }
 
     // Verify fingerprint
     final computed = await _crypto.computeFingerprint(kek);
@@ -127,14 +169,34 @@ class CredentialService {
       throw WrongPassphraseException();
     }
 
+    // Unwrap Master Key
+    final wrappedMkB64 = await _storage.read(key: _wrappedMasterKeyKey);
+    Uint8List? masterKey;
+    if (wrappedMkB64 != null) {
+      final wrappedMk = CryptoService.b64Decode(wrappedMkB64);
+      masterKey = await _crypto.unwrapKey(wrappedMk, kek);
+    }
+
     // Start session
     startSession(kek);
+    _sessionMasterKey = masterKey;
 
     // Save passphrase for auto-unlock on next app start
     await _storage.write(key: _savedPassphraseKey, value: passphrase);
 
     return kek;
   }
+
+  /// Restore access using a Master Key recovered from the recovery key.
+  /// After calling this, the user should set a new passphrase via [changePassphrase].
+  void restoreWithRecoveryKey(Uint8List masterKey) {
+    _sessionMasterKey = masterKey;
+    _sessionActive = true;
+    _log.info('Session restored from recovery key (Master Key only, no KEK)');
+  }
+
+  /// Whether the session has a Master Key (either from normal unlock or recovery).
+  bool get hasMasterKey => _sessionActive && _sessionMasterKey != null;
 
   /// Try to auto-unlock using the saved passphrase from Keychain.
   /// Returns true if unlock succeeded, false if no saved passphrase or unlock failed.
@@ -145,7 +207,7 @@ class CredentialService {
       if (passphrase == null) return false;
       await unlockWithPassphrase(passphrase);
       return true;
-    } catch (e) {
+    } on Exception catch (e) {
       _log.warning('Auto-unlock failed: $e');
       // Clear invalid saved passphrase
       await _storage.delete(key: _savedPassphraseKey);
@@ -156,18 +218,21 @@ class CredentialService {
   /// Verify the passphrase without starting a session.
   Future<bool> verifyPassphrase(String passphrase) async {
     try {
-      final kek = await unlockWithPassphrase(passphrase);
+      await unlockWithPassphrase(passphrase);
       endSession();
       return true;
     } on WrongPassphraseException {
       return false;
     } on StateError {
       return false; // No passphrase set up
+    } on Exception catch (_) {
+      // Corrupted Keychain data or other unexpected failure.
+      return false;
     }
   }
 
-  /// Change the passphrase: set up new KEK (old KEK no longer wraps S3
-  /// credentials — they are stored plaintext in Keychain).
+  /// Change the passphrase: re-derive KEK with new password, re-wrap the
+  /// existing Master Key. Master Key itself never changes.
   Future<void> changePassphrase(String oldPassphrase, String newPassphrase) async {
     _log.info('Changing passphrase...');
 
@@ -177,23 +242,54 @@ class CredentialService {
     // Unlock with old KEK to verify the old password is correct.
     final oldKek = await unlockWithPassphrase(oldPassphrase);
 
-    // End old session, then zero the local reference. The KEK bytes are shared
-    // with _sessionKek, so we must null _sessionKek first (in endSession)
-    // before freeing the memory.
+    // Preserve the Master Key before ending the old session.
+    // Deep copy — endSession() will zero the original buffer.
+    final masterKey = _sessionMasterKey != null
+        ? Uint8List.fromList(_sessionMasterKey!)
+        : null;
+
+    // End old session, then zero the local reference.
     endSession();
     _crypto.secureFree(oldKek);
 
-    // Set up new passphrase.
-    final newKek = await setupPassphrase(newPassphrase);
-    startSession(newKek);
+    // Derive new KEK with adaptive params.
+    final salt = _crypto.generateSalt();
+    final params = await _crypto.probeArgon2Params(newPassphrase, salt);
+    final newKek = await _crypto.deriveKekWithParams(
+      newPassphrase, salt,
+      memory: params.memory,
+      iterations: params.ops,
+    );
+    final fingerprint = await _crypto.computeFingerprint(newKek);
 
-    // Re-save S3 credentials (now as plaintext under the new session).
+    // Re-wrap the same Master Key with the new KEK.
+    Uint8List? wrappedMk;
+    if (masterKey != null) {
+      wrappedMk = await _crypto.wrapKey(masterKey, newKek);
+    }
+
+    // Store updated Keychain entries.
+    await _storage.write(key: _kekSaltKey, value: CryptoService.b64Encode(salt));
+    await _storage.write(key: _kekKey, value: CryptoService.b64Encode(newKek));
+    await _storage.write(key: _kekFingerprintKey, value: fingerprint);
+    await _storage.write(key: _argon2MemoryKey, value: params.memory.toString());
+    await _storage.write(key: _argon2OpsKey, value: params.ops.toString());
+    if (wrappedMk != null) {
+      await _storage.write(key: _wrappedMasterKeyKey, value: CryptoService.b64Encode(wrappedMk));
+    }
+
+    // Re-save S3 credentials.
     if (creds != null) {
       await saveS3Credentials(creds.accessKey, creds.secretKey);
     }
 
-    endSession();
-    _log.info('Passphrase changed successfully');
+    // Zero the new KEK (it's in Keychain now).
+    _crypto.secureFree(newKek);
+    if (masterKey != null) {
+      _crypto.secureFree(masterKey);
+    }
+
+    _log.info('Passphrase changed successfully (Master Key preserved)');
   }
 
   // ── S3 Credential Storage ────────────────────────────────────
@@ -255,11 +351,14 @@ class CredentialService {
     endSession();
     await _storage.delete(key: _akKey);
     await _storage.delete(key: _skKey);
-    await _storage.delete(key: _wrappedKekKey);
+    await _storage.delete(key: _kekKey);
     await _storage.delete(key: _kekSaltKey);
     await _storage.delete(key: _kekFingerprintKey);
     await _storage.delete(key: _hasPassphraseKey);
     await _storage.delete(key: _savedPassphraseKey);
+    await _storage.delete(key: _wrappedMasterKeyKey);
+    await _storage.delete(key: _argon2MemoryKey);
+    await _storage.delete(key: _argon2OpsKey);
     _log.warning('All credentials and keys deleted');
   }
 }

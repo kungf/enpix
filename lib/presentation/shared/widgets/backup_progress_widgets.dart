@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:see_photo/core/theme/app_colors.dart';
-import 'package:see_photo/core/theme/app_spacing.dart';
-import 'package:see_photo/services/upload/backup_task.dart';
-import 'package:see_photo/services/upload/backup_manager.dart';
-import 'package:see_photo/presentation/shared/widgets/enpix_progress.dart';
+import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/app_spacing.dart';
+import 'package:enpix/services/upload/backup_task.dart';
+import 'package:enpix/services/upload/backup_manager.dart';
+import 'package:enpix/presentation/shared/widgets/enpix_progress.dart';
 
 /// Backup progress header — icon, title, progress text.
 class ProgressHeader extends StatelessWidget {

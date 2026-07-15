@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:photo_manager/photo_manager.dart';
-import 'package:see_photo/core/theme/app_colors.dart';
-import 'package:see_photo/core/theme/app_spacing.dart';
+import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/app_spacing.dart';
 
 /// Full-resolution image loader with fallback.
 class FullResImage extends StatefulWidget {

@@ -2,18 +2,18 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:photo_manager/photo_manager.dart';
-import 'package:see_photo/core/constants/app_constants.dart';
-import 'package:see_photo/core/theme/app_colors.dart';
-import 'package:see_photo/core/theme/app_spacing.dart';
-import 'package:see_photo/services/providers.dart';
-import 'package:see_photo/domain/entities/storage_config.dart';
-import 'package:see_photo/presentation/shared/widgets/enpix_loading_state.dart';
-import 'package:see_photo/presentation/shared/widgets/enpix_empty_state.dart';
-import 'package:see_photo/presentation/shared/widgets/enpix_error_state.dart';
-import 'package:see_photo/presentation/shared/widgets/enpix_progress.dart';
-import 'package:see_photo/presentation/shared/widgets/photo_viewer.dart';
-import 'package:see_photo/presentation/shared/widgets/backup_progress_widgets.dart';
-import 'package:see_photo/services/upload/backup_task.dart';
+import 'package:enpix/core/constants/app_constants.dart';
+import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/app_spacing.dart';
+import 'package:enpix/services/providers.dart';
+import 'package:enpix/domain/entities/storage_config.dart';
+import 'package:enpix/presentation/shared/widgets/enpix_loading_state.dart';
+import 'package:enpix/presentation/shared/widgets/enpix_empty_state.dart';
+import 'package:enpix/presentation/shared/widgets/enpix_error_state.dart';
+import 'package:enpix/presentation/shared/widgets/enpix_progress.dart';
+import 'package:enpix/presentation/shared/widgets/photo_viewer.dart';
+import 'package:enpix/presentation/shared/widgets/backup_progress_widgets.dart';
+import 'package:enpix/services/upload/backup_task.dart';
 
 /// Local photo browser — device photos grouped by day.
 ///

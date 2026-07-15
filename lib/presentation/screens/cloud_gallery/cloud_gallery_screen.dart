@@ -4,16 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:see_photo/core/theme/app_colors.dart';
-import 'package:see_photo/core/theme/app_spacing.dart';
-import 'package:see_photo/services/crypto/crypto_service.dart';
-import 'package:see_photo/services/storage/s3_service.dart';
-import 'package:see_photo/services/providers.dart';
-import 'package:see_photo/domain/entities/storage_config.dart';
-import 'package:see_photo/presentation/shared/widgets/enpix_empty_state.dart';
-import 'package:see_photo/presentation/shared/widgets/enpix_error_state.dart';
-import 'package:see_photo/presentation/shared/widgets/enpix_progress.dart';
-import 'package:see_photo/presentation/shared/widgets/enpix_skeleton.dart';
+import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/app_spacing.dart';
+import 'package:enpix/services/crypto/crypto_service.dart';
+import 'package:enpix/services/storage/s3_service.dart';
+import 'package:enpix/services/providers.dart';
+import 'package:enpix/domain/entities/storage_config.dart';
+import 'package:enpix/presentation/shared/widgets/enpix_empty_state.dart';
+import 'package:enpix/presentation/shared/widgets/enpix_error_state.dart';
+import 'package:enpix/presentation/shared/widgets/enpix_progress.dart';
+import 'package:enpix/presentation/shared/widgets/enpix_skeleton.dart';
 
 /// Cloud photo browser — encrypted thumbnails from S3, grouped by day.
 ///
@@ -250,15 +250,15 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
       final crypto = ref.read(cryptoServiceProvider);
       final credService = ref.read(credentialServiceProvider);
       final cache = ref.read(thumbnailCacheProvider);
-      if (!credService.isSessionActive) return null;
+      if (!credService.hasMasterKey) return null;
       final encrypted = await s3.getObject(thumb.s3Key);
       final meta = await s3.headObject(thumb.s3Key);
       final dekB64 = meta['x-amz-meta-dek'];
       final nonceB64 = meta['x-amz-meta-nonce'];
       if (dekB64 == null || nonceB64 == null) return null;
       final wrappedDek = CryptoService.b64Decode(dekB64);
-      final kek = credService.sessionKek!;
-      final dek = await crypto.unwrapKey(wrappedDek, kek);
+      final masterKey = credService.sessionMasterKey!;
+      final dek = await crypto.unwrapKey(wrappedDek, masterKey);
       final decrypted = await crypto.decrypt(encrypted, dek);
       crypto.secureFree(dek);
       await cache.save(thumb.fileId, decrypted);
@@ -273,7 +273,7 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
       final s3 = ref.read(s3ServiceProvider);
       final crypto = ref.read(cryptoServiceProvider);
       final credService = ref.read(credentialServiceProvider);
-      if (!credService.isSessionActive) {
+      if (!credService.hasMasterKey) {
         if (mounted)
           ScaffoldMessenger.of(context)
               .showSnackBar(const SnackBar(content: Text('请先在设置中设置加密密码')));
@@ -298,8 +298,8 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
       }
 
       final wrappedDek = CryptoService.b64Decode(dekB64);
-      final kek = credService.sessionKek!;
-      final dek = await crypto.unwrapKey(wrappedDek, kek);
+      final masterKey = credService.sessionMasterKey!;
+      final dek = await crypto.unwrapKey(wrappedDek, masterKey);
       final decrypted = await crypto.decrypt(encrypted, dek);
       crypto.secureFree(dek);
 

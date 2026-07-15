@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:see_photo/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/app_colors.dart';
 
 /// Enpix linear progress bar — iOS 18 style.
 class EnpixLinearProgress extends StatelessWidget {

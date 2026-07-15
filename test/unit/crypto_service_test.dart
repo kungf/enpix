@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:see_photo/services/crypto/crypto_service.dart';
+import 'package:enpix/services/crypto/crypto_service.dart';
 
 void main() {
   late CryptoService crypto;

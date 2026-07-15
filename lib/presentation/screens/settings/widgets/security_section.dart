@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:see_photo/core/theme/app_colors.dart';
-import 'package:see_photo/services/providers.dart';
-import 'package:see_photo/services/crypto/credential_service.dart';
-import 'package:see_photo/presentation/shared/widgets/enpix_section.dart';
-import 'package:see_photo/presentation/shared/widgets/enpix_list_tile.dart';
-import 'package:see_photo/presentation/screens/settings/dialogs/setup_password_dialog.dart';
-import 'package:see_photo/presentation/screens/settings/dialogs/unlock_and_reset_dialogs.dart';
+import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/services/providers.dart';
+import 'package:enpix/services/crypto/credential_service.dart';
+import 'package:enpix/presentation/shared/widgets/enpix_section.dart';
+import 'package:enpix/presentation/shared/widgets/enpix_list_tile.dart';
+import 'package:enpix/presentation/screens/settings/dialogs/setup_password_dialog.dart';
+import 'package:enpix/presentation/screens/settings/dialogs/unlock_and_reset_dialogs.dart';
+import 'package:enpix/presentation/screens/settings/dialogs/recovery_key_dialog.dart';
 
 /// Encryption passphrase section — controls the passphrase that protects
 /// end-to-end encrypted cloud photos.
@@ -41,6 +42,18 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
                   child: const Text('设置'),
                 ),
         ),
+        if (isActive) ...[
+          EnpixListTile(
+            icon: Icons.key_rounded,
+            iconColor: AppColors.brandPurple,
+            title: '备份恢复密钥',
+            subtitle: '忘记密码时恢复数据的唯一方式',
+            trailing: TextButton(
+              onPressed: _backupRecoveryKey,
+              child: const Text('备份', style: TextStyle(fontSize: 15)),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -91,6 +104,42 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('修改失败: $e'), backgroundColor: AppColors.brandRed));
+      }
+    }
+  }
+
+  Future<void> _backupRecoveryKey() async {
+    final cred = ref.read(credentialServiceProvider);
+    final recovery = ref.read(recoveryServiceProvider);
+
+    if (cred.sessionMasterKey == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('请先解锁'), backgroundColor: AppColors.brandRed));
+      }
+      return;
+    }
+
+    try {
+      final fingerprint = await cred.getKekFingerprint() ?? 'shared';
+      final mnemonic = await recovery.setupRecovery(
+        masterKey: cred.sessionMasterKey!,
+        kekFingerprint: fingerprint,
+      );
+
+      if (mounted) {
+        final confirmed = await showRecoveryKeyDialog(context, mnemonic);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(confirmed == true ? '恢复密钥已备份' : '请稍后备份恢复密钥'),
+            backgroundColor: confirmed == true ? AppColors.brandGreen : AppColors.brandOrange,
+          ));
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('备份失败: $e'), backgroundColor: AppColors.brandRed));
       }
     }
   }

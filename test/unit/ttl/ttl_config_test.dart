@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:see_photo/services/ttl/ttl_config.dart';
+import 'package:enpix/services/ttl/ttl_config.dart';
 
 void main() {
   group('TtlConfig', () {

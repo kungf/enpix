@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:see_photo/core/theme/app_colors.dart';
-import 'package:see_photo/core/theme/app_spacing.dart';
+import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/app_spacing.dart';
 
 /// Loading state with optional message and shimmer effect.
 class EnpixLoadingState extends StatelessWidget {

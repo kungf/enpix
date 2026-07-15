@@ -5,21 +5,67 @@ import 'package:cryptography/cryptography.dart';
 import '../../core/constants/crypto_constants.dart';
 
 class CryptoService {
-  final _argon2id = Argon2id(
-    parallelism: CryptoConstants.argon2Parallelism,
-    memory: CryptoConstants.argon2MemorySize,
-    iterations: CryptoConstants.argon2Iterations,
-    hashLength: CryptoConstants.argon2HashLength,
-  );
   final Cipher _aead = Xchacha20.poly1305Aead();
   final Blake2b _blake2b = Blake2b(hashLengthInBytes: CryptoConstants.blake2bHashLength);
 
-  Future<Uint8List> deriveKek(String passphrase, Uint8List salt) async {
-    final key = await _argon2id.deriveKey(
+  /// Max time (ms) for a single Argon2id probe attempt.
+  static const int _argon2ProbeTimeoutMs = 3000;
+
+  /// Derive KEK with specific Argon2id params (used for adaptive probing
+  /// and for reading old entries with legacy params).
+  Future<Uint8List> deriveKekWithParams(
+    String passphrase,
+    Uint8List salt, {
+    required int memory,
+    required int iterations,
+  }) async {
+    final argon2id = Argon2id(
+      parallelism: CryptoConstants.argon2Parallelism,
+      memory: memory,
+      iterations: iterations,
+      hashLength: CryptoConstants.argon2HashLength,
+    );
+    final key = await argon2id.deriveKey(
       secretKey: SecretKey(utf8.encode(passphrase)),
       nonce: salt,
     );
     return Uint8List.fromList(await key.extractBytes());
+  }
+
+  /// Derive KEK with legacy fixed params (for existing users).
+  Future<Uint8List> deriveKek(String passphrase, Uint8List salt) async {
+    return deriveKekWithParams(
+      passphrase,
+      salt,
+      memory: CryptoConstants.argon2MemorySize,
+      iterations: CryptoConstants.argon2Iterations,
+    );
+  }
+
+  /// Probe the device to find the strongest Argon2id params it can handle.
+  /// Returns (memory, ops) that complete within ~2 seconds.
+  Future<({int memory, int ops})> probeArgon2Params(String passphrase, Uint8List salt) async {
+    var memory = CryptoConstants.argon2MemoryStart;
+    var ops = CryptoConstants.argon2OpsStart;
+
+    while (memory >= CryptoConstants.argon2MemoryFloor) {
+      final sw = Stopwatch()..start();
+      try {
+        await deriveKekWithParams(passphrase, salt, memory: memory, iterations: ops);
+        sw.stop();
+        if (sw.elapsedMilliseconds < _argon2ProbeTimeoutMs) {
+          return (memory: memory, ops: ops);
+        }
+      } on Exception catch (_) {
+        // Non-OOM failure (e.g. timeout) — fall through to next tier.
+        // OutOfMemoryError and other Errors are not caught and will propagate.
+      }
+      memory ~/= 2;
+      ops *= 2;
+    }
+
+    // Fallback: floor params.
+    return (memory: CryptoConstants.argon2MemoryFloor, ops: CryptoConstants.argon2OpsFloor);
   }
 
   Future<String> computeFingerprint(List<int> kek) async {
@@ -30,6 +76,8 @@ class CryptoService {
   Uint8List generateSalt() => _random(CryptoConstants.argon2SaltLength);
   Uint8List generateDek() => _random(CryptoConstants.xchacha20KeyLength);
   Uint8List generateNonce() => _random(CryptoConstants.xchacha20NonceLength);
+  Uint8List generateMasterKey() => _random(CryptoConstants.xchacha20KeyLength);
+  Uint8List generateRecoveryKey() => _random(CryptoConstants.xchacha20KeyLength);
 
   Future<Uint8List> wrapKey(Uint8List key, Uint8List kek) async {
     final nonce = _random(CryptoConstants.keyWrapNonceLength);

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:see_photo/core/theme/app_colors.dart';
-import 'package:see_photo/core/theme/app_spacing.dart';
-import 'package:see_photo/services/providers.dart';
-import 'package:see_photo/presentation/shared/widgets/enpix_section.dart';
-import 'package:see_photo/presentation/shared/widgets/enpix_list_tile.dart';
+import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/app_spacing.dart';
+import 'package:enpix/services/providers.dart';
+import 'package:enpix/presentation/shared/widgets/enpix_section.dart';
+import 'package:enpix/presentation/shared/widgets/enpix_list_tile.dart';
 
 /// About section — app version and KEK fingerprint.
 class AboutSection extends ConsumerStatefulWidget {

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'crypto/crypto_service.dart';
 import 'crypto/credential_service.dart';
+import 'crypto/recovery_service.dart';
 import 'storage/s3_service.dart';
 import 'upload/upload_tracker.dart';
 import 'cache/thumbnail_cache.dart';
@@ -24,6 +25,13 @@ final credentialServiceProvider = Provider<CredentialService>((ref) {
 });
 
 final s3ServiceProvider = Provider<S3Service>((ref) => S3Service());
+
+final recoveryServiceProvider = Provider<RecoveryService>((ref) {
+  return RecoveryService(
+    ref.watch(cryptoServiceProvider),
+    ref.watch(s3ServiceProvider),
+  );
+});
 
 final uploadTrackerProvider = Provider<UploadTracker>((ref) => UploadTracker());
 

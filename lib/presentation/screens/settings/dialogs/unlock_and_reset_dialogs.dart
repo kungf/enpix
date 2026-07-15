@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:see_photo/core/theme/app_colors.dart';
-import 'package:see_photo/core/theme/app_spacing.dart';
+import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/app_spacing.dart';
 
 /// Dialog to unlock KEK session with passphrase.
 Future<String?> showUnlockDialog(BuildContext context) {

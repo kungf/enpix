@@ -2,8 +2,8 @@
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:see_photo/services/storage/s3_service.dart';
-import 'package:see_photo/domain/entities/storage_config.dart';
+import 'package:enpix/services/storage/s3_service.dart';
+import 'package:enpix/domain/entities/storage_config.dart';
 import 'e2e_config.dart';
 
 /// End-to-end tests for S3 storage operations against a real endpoint.

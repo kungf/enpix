@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:see_photo/core/theme/app_colors.dart';
-import 'package:see_photo/core/theme/app_spacing.dart';
-import 'package:see_photo/core/errors/storage_exception.dart';
-import 'package:see_photo/domain/entities/storage_config.dart';
-import 'package:see_photo/services/providers.dart';
-import 'package:see_photo/presentation/shared/widgets/enpix_section.dart';
-import 'package:see_photo/presentation/shared/widgets/enpix_progress.dart';
+import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/app_spacing.dart';
+import 'package:enpix/core/errors/storage_exception.dart';
+import 'package:enpix/domain/entities/storage_config.dart';
+import 'package:enpix/services/providers.dart';
+import 'package:enpix/presentation/shared/widgets/enpix_section.dart';
+import 'package:enpix/presentation/shared/widgets/enpix_progress.dart';
 
 /// S3 storage configuration — endpoint, bucket, credentials, connection test.
 class StorageSection extends ConsumerStatefulWidget {

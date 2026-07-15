@@ -335,7 +335,7 @@ class BackupManager extends StateNotifier<BackupTask> {
         fileName: fileName,
         mimeType: asset.mimeType ?? 'image/jpeg',
         createdAt: asset.createDateTime,
-        kek: _credService.sessionKek!,
+        masterKey: _credService.sessionMasterKey!,
         isCancelled: () => _cancelled,
       );
 
