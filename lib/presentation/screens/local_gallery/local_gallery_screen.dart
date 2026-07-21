@@ -14,6 +14,7 @@ import 'package:enpix/presentation/shared/widgets/enpix_progress.dart';
 import 'package:enpix/presentation/shared/widgets/photo_viewer.dart';
 import 'package:enpix/presentation/shared/widgets/backup_progress_widgets.dart';
 import 'package:enpix/presentation/shared/utils/format_duration.dart';
+import 'package:enpix/services/thumbnail/thumbnail_loader.dart';
 import 'package:enpix/services/upload/backup_task.dart';
 
 /// Local photo browser — device photos grouped by day.
@@ -412,51 +413,57 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
           subtitle: '拍摄照片后会显示在这里');
     }
 
-    return Column(
-      children: [
-        _TypeFilter(
-            current: _filter,
-            onChanged: (v) {
-              setState(() => _filter = v);
-              _rebuildSections();
-            }),
-        Expanded(
-          child: NotificationListener<ScrollNotification>(
-            onNotification: (n) {
-              if (n is ScrollEndNotification &&
-                  n.metrics.pixels >= n.metrics.maxScrollExtent - 500)
-                _loadMore();
-              return false;
-            },
-            child: ListView.builder(
-              controller: _scrollCtrl,
-              padding: const EdgeInsets.only(bottom: 100),
-              itemCount: _sections.length + (_loading ? 1 : 0),
-              itemBuilder: (context, sectionIndex) {
-                if (sectionIndex >= _sections.length) {
-                  return const Padding(
-                    padding: EdgeInsets.all(AppSpacing.xl),
-                    child: Center(child: EnpixCircularProgress()),
-                  );
-                }
-                final section = _sections[sectionIndex];
-                return _DaySectionWidget(
-                  section: section,
-                  selectionMode: _selectionMode,
-                  isSelected: (id) => _selected.contains(id),
-                  uploadedIds: _uploadedIds,
-                  onTap: (asset) {
-                    _selectionMode
-                        ? _toggleSelection(asset.id)
-                        : _openViewer(asset);
-                  },
-                  onLongPress: (asset) => _toggleSelection(asset.id),
-                );
-              },
-            ),
+    return NotificationListener<ScrollNotification>(
+      onNotification: (n) {
+        if (n is ScrollEndNotification &&
+            n.metrics.pixels >= n.metrics.maxScrollExtent - 500) {
+          _loadMore();
+        }
+        return false;
+      },
+      child: CustomScrollView(
+        controller: _scrollCtrl,
+        slivers: [
+          SliverToBoxAdapter(
+            child: _TypeFilter(
+                current: _filter,
+                onChanged: (v) {
+                  setState(() => _filter = v);
+                  _rebuildSections();
+                }),
           ),
-        ),
-      ],
+          for (final section in _sections) ...[
+            SliverToBoxAdapter(child: _DayHeader(section: section)),
+            SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3, crossAxisSpacing: 2, mainAxisSpacing: 2),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final asset = section.assets[index];
+                  return _AssetThumb(
+                    asset: asset,
+                    selected: _selected.contains(asset.id),
+                    isUploaded: _uploadedIds.contains(asset.id),
+                    onTap: () => _selectionMode
+                        ? _toggleSelection(asset.id)
+                        : _openViewer(asset),
+                    onLongPress: () => _toggleSelection(asset.id),
+                  );
+                },
+                childCount: section.assets.length,
+              ),
+            ),
+          ],
+          if (_loading)
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.all(AppSpacing.xl),
+                child: Center(child: EnpixCircularProgress()),
+              ),
+            ),
+          const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
+        ],
+      ),
     );
   }
 
@@ -577,81 +584,47 @@ class _TypeFilter extends StatelessWidget {
   }
 }
 
-// ── Section widget ──
+// ── Section header ──
 
-class _DaySectionWidget extends StatelessWidget {
+class _DayHeader extends StatelessWidget {
   final _DaySection section;
-  final bool selectionMode;
-  final bool Function(String id) isSelected;
-  final Set<String> uploadedIds;
-  final void Function(AssetEntity) onTap;
-  final void Function(AssetEntity) onLongPress;
-
-  _DaySectionWidget(
-      {required this.section,
-      required this.selectionMode,
-      required this.isSelected,
-      required this.uploadedIds,
-      required this.onTap,
-      required this.onLongPress});
+  const _DayHeader({required this.section});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(
-              AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.sm),
-          child: Row(
-            children: [
-              Text(section.label,
-                  style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      color: context.colors.labelPrimary,
-                      letterSpacing: -0.5)),
-              SizedBox(width: AppSpacing.sm),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
-                decoration: BoxDecoration(
-                    color: context.colors.fillSecondary,
-                    borderRadius: BorderRadius.circular(AppRadius.sm)),
-                child: Text('${section.assets.length}',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: context.colors.labelSecondary)),
-              ),
-            ],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.sm),
+      child: Row(
+        children: [
+          Text(section.label,
+              style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: context.colors.labelPrimary,
+                  letterSpacing: -0.5)),
+          const SizedBox(width: AppSpacing.sm),
+          Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
+            decoration: BoxDecoration(
+                color: context.colors.fillSecondary,
+                borderRadius: BorderRadius.circular(AppRadius.sm)),
+            child: Text('${section.assets.length}',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: context.colors.labelSecondary)),
           ),
-        ),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3, crossAxisSpacing: 2, mainAxisSpacing: 2),
-          itemCount: section.assets.length,
-          itemBuilder: (context, index) {
-            final asset = section.assets[index];
-            return _AssetThumb(
-                asset: asset,
-                selected: isSelected(asset.id),
-                isUploaded: uploadedIds.contains(asset.id),
-                onTap: () => onTap(asset),
-                onLongPress: () => onLongPress(asset));
-          },
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
 // ── Thumbnail widget ──
 
-class _AssetThumb extends StatefulWidget {
+class _AssetThumb extends ConsumerStatefulWidget {
   final AssetEntity asset;
   final bool selected;
   final bool isUploaded;
@@ -663,10 +636,10 @@ class _AssetThumb extends StatefulWidget {
       this.onTap,
       this.onLongPress});
   @override
-  State<_AssetThumb> createState() => _AssetThumbState();
+  ConsumerState<_AssetThumb> createState() => _AssetThumbState();
 }
 
-class _AssetThumbState extends State<_AssetThumb> {
+class _AssetThumbState extends ConsumerState<_AssetThumb> {
   Uint8List? _thumb;
 
   @override
@@ -676,9 +649,12 @@ class _AssetThumbState extends State<_AssetThumb> {
   }
 
   Future<void> _loadThumb() async {
-    final data = await widget.asset.thumbnailDataWithSize(
-        ThumbnailSize(256, 256),
-        format: ThumbnailFormat.jpeg);
+    final data = await ref.read(localThumbnailLoaderProvider).load(
+          widget.asset.id,
+          () => widget.asset.thumbnailDataWithSize(
+              const ThumbnailSize(256, 256),
+              format: ThumbnailFormat.jpeg),
+        );
     if (mounted) setState(() => _thumb = data);
   }
 

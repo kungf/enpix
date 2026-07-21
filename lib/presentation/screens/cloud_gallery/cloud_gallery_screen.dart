@@ -10,6 +10,7 @@ import 'package:enpix/services/crypto/crypto_service.dart';
 import 'package:enpix/services/storage/s3_service.dart';
 import 'package:enpix/services/storage/s3_config_service.dart';
 import 'package:enpix/services/providers.dart';
+import 'package:enpix/services/thumbnail/thumbnail_loader.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_empty_state.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_error_state.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_progress.dart';
@@ -533,17 +534,17 @@ class _CloudDaySectionWidget extends StatelessWidget {
 
 // ── Thumbnail widget with encryption badge ──
 
-class _CloudThumbWidget extends StatefulWidget {
+class _CloudThumbWidget extends ConsumerStatefulWidget {
   final _CloudThumb thumb;
   final Future<Uint8List?> Function(_CloudThumb) loadThumb;
   final VoidCallback onTap;
   _CloudThumbWidget(
       {required this.thumb, required this.loadThumb, required this.onTap});
   @override
-  State<_CloudThumbWidget> createState() => _CloudThumbWidgetState();
+  ConsumerState<_CloudThumbWidget> createState() => _CloudThumbWidgetState();
 }
 
-class _CloudThumbWidgetState extends State<_CloudThumbWidget> {
+class _CloudThumbWidgetState extends ConsumerState<_CloudThumbWidget> {
   Uint8List? _data;
   bool _loading = true;
 
@@ -554,18 +555,24 @@ class _CloudThumbWidgetState extends State<_CloudThumbWidget> {
   }
 
   Future<void> _load() async {
-    final data = await widget.loadThumb(widget.thumb);
-    if (mounted)
+    final data = await ref.read(cloudThumbnailLoaderProvider).load(
+          widget.thumb.s3Key,
+          () => widget.loadThumb(widget.thumb),
+        );
+    if (mounted) {
       setState(() {
         _data = data;
         _loading = false;
       });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    // When the fetch failed, tap retries instead of opening the viewer.
+    final failed = !_loading && _data == null;
     return GestureDetector(
-      onTap: widget.onTap,
+      onTap: _loading ? null : (failed ? _load : widget.onTap),
       child: Stack(fit: StackFit.expand, children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(AppRadius.xxs),
