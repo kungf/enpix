@@ -1,68 +1,85 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_section.dart';
+import 'package:enpix/services/settings/upload_settings.dart';
+import 'package:enpix/services/settings/upload_settings_provider.dart';
 
-/// Upload configuration section — delay threshold, WiFi-only toggle.
-class UploadSection extends StatefulWidget {
+/// Upload configuration section - delay threshold, WiFi-only toggle.
+///
+/// State is persisted via [uploadSettingsProvider] (Keychain JSON) and written
+/// through immediately on every change.
+class UploadSection extends ConsumerWidget {
   const UploadSection({super.key});
-  @override
-  State<UploadSection> createState() => _UploadSectionState();
-}
-
-class _UploadSectionState extends State<UploadSection> {
-  bool _enabled = true;
-  double _delayDays = 0;
-  bool _unitHours = false;
-  bool _wifiOnly = true;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(uploadSettingsProvider);
+    final notifier = ref.read(uploadSettingsProvider.notifier);
+
     return EnpixSection(
       header: '上传配置',
       footer: '仅上传拍摄时间超过阈值的照片，0 为不限',
       children: [
         SwitchListTile(
           title: const Text('上传阈值'),
-          subtitle: Text(_enabled
-              ? (_delayDays == 0 ? '不限' : '仅上传 ${_delayDays.toInt()} ${_unitHours ? '小时' : '天'}前拍摄的照片')
+          subtitle: Text(settings.thresholdEnabled
+              ? (settings.thresholdValue == 0
+                  ? '不限'
+                  : '仅上传 ${settings.thresholdValue.toInt()} ${settings.unitHours ? '小时' : '天'}前拍摄的照片')
               : '已禁用'),
-          value: _enabled,
-          onChanged: (v) => setState(() => _enabled = v),
+          value: settings.thresholdEnabled,
+          onChanged: notifier.setThresholdEnabled,
         ),
-        if (_enabled) _buildDelaySlider(),
+        if (settings.thresholdEnabled)
+          _buildDelaySlider(context, settings, notifier),
         const Divider(indent: AppSpacing.lg),
         SwitchListTile(
           title: const Text('仅 WiFi 上传'),
-          value: _wifiOnly,
-          onChanged: (v) => setState(() => _wifiOnly = v),
+          value: settings.wifiOnly,
+          onChanged: notifier.setWifiOnly,
         ),
       ],
     );
   }
 
-  Widget _buildDelaySlider() {
+  Widget _buildDelaySlider(
+    BuildContext context,
+    UploadSettings settings,
+    UploadSettingsNotifier notifier,
+  ) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.md),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.md),
       child: Column(
         children: [
           Row(
             children: [
-              Text('拍摄于 ${_delayDays.toInt()} ${_unitHours ? '小时' : '天'}前',
-                  style:  TextStyle(fontSize: 13, color: context.colors.labelSecondary)),
+              Text(
+                  '拍摄于 ${settings.thresholdValue.toInt()} ${settings.unitHours ? '小时' : '天'}前',
+                  style: TextStyle(
+                      fontSize: 13, color: context.colors.labelSecondary)),
               const Spacer(),
               _UnitSegment(
-                isHours: _unitHours,
-                onChanged: (hours) => setState(() {
-                  _unitHours = hours;
-                  if (hours && _delayDays > 72) _delayDays = 72;
-                }),
+                isHours: settings.unitHours,
+                onChanged: (hours) {
+                  notifier.setUnitHours(hours);
+                  if (hours && settings.thresholdValue > 72) {
+                    notifier.setThresholdValue(72);
+                  }
+                },
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
-          Slider(value: _delayDays, min: 0, max: _unitHours ? 72 : 365, divisions: _unitHours ? 72 : 73,
-            onChanged: (v) => setState(() => _delayDays = v)),
+          Slider(
+            value: settings.thresholdValue,
+            min: 0,
+            max: settings.unitHours ? 72 : 365,
+            divisions: settings.unitHours ? 72 : 73,
+            onChanged: notifier.setThresholdValue,
+          ),
         ],
       ),
     );

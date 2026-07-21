@@ -54,7 +54,6 @@ class MainScreen extends ConsumerStatefulWidget {
 
 class _MainScreenState extends ConsumerState<MainScreen> {
   final _log = Logger('MainScreen');
-  final _settingsReload = ValueNotifier<int>(0);
   int _currentIndex = 0;
 
   @override
@@ -69,7 +68,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     final unlocked = await credService.autoUnlock();
     if (unlocked) {
       _log.info('KEK session auto-unlocked');
-      _settingsReload.value++;
+      ref.read(sessionTickProvider.notifier).state++;
     }
 
     // Run TTL cleanup after unlock.
@@ -98,8 +97,10 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       CloudGalleryScreen(
         onNavigateToSettings: () => setState(() => _currentIndex = 3),
       ),
-      const OverviewScreen(),
-      SettingsScreen(reloadNotifier: _settingsReload),
+      OverviewScreen(
+        onNavigateToSettings: () => setState(() => _currentIndex = 3),
+      ),
+      const SettingsScreen(),
     ];
   }
 

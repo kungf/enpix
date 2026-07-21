@@ -66,3 +66,33 @@ class EnpixCircularProgress extends StatelessWidget {
     );
   }
 }
+
+/// Enpix mini progress bar - gradient fill, iOS 18 style.
+class EnpixMiniProgress extends StatelessWidget {
+  final double value;
+
+  const EnpixMiniProgress({super.key, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 6,
+      decoration: BoxDecoration(
+        color: context.colors.fillPrimary,
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: FractionallySizedBox(
+        alignment: Alignment.centerLeft,
+        widthFactor: value.clamp(0.0, 1.0),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [context.colors.brandBlue, context.colors.brandTeal],
+            ),
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+      ),
+    );
+  }
+}

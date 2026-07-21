@@ -21,7 +21,8 @@ final cryptoServiceProvider = Provider<CryptoService>((ref) => CryptoService());
 final deviceServiceProvider = Provider<DeviceService>((ref) => DeviceService());
 
 final credentialServiceProvider = Provider<CredentialService>((ref) {
-  return CredentialService(ref.watch(cryptoServiceProvider), const FlutterSecureStorage());
+  return CredentialService(
+      ref.watch(cryptoServiceProvider), const FlutterSecureStorage());
 });
 
 final s3ServiceProvider = Provider<S3Service>((ref) => S3Service());
@@ -35,13 +36,15 @@ final recoveryServiceProvider = Provider<RecoveryService>((ref) {
 
 final uploadTrackerProvider = Provider<UploadTracker>((ref) => UploadTracker());
 
-final thumbnailCacheProvider = Provider<ThumbnailCache>((ref) => ThumbnailCache());
+final thumbnailCacheProvider =
+    Provider<ThumbnailCache>((ref) => ThumbnailCache());
 
 final ttlEngineProvider = Provider<TtlEngine>((ref) {
   return TtlEngine(ref.watch(uploadTrackerProvider));
 });
 
-final backupManagerProvider = StateNotifierProvider<BackupManager, BackupTask>((ref) {
+final backupManagerProvider =
+    StateNotifierProvider<BackupManager, BackupTask>((ref) {
   return BackupManager(
     UploadService(
       ref.watch(cryptoServiceProvider),
@@ -55,3 +58,8 @@ final backupManagerProvider = StateNotifierProvider<BackupManager, BackupTask>((
     ref.watch(deviceServiceProvider),
   );
 });
+
+/// Incremented to signal that the KEK session state (unlock/lock) may have
+/// changed, so widgets watching it rebuild to reflect the new state. Bridges
+/// the non-reactive [CredentialService] session to Riverpod.
+final sessionTickProvider = StateProvider<int>((ref) => 0);

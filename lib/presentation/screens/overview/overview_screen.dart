@@ -1,23 +1,34 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
 import 'package:enpix/services/providers.dart';
+import 'package:enpix/services/storage/device_list_provider.dart';
+import 'package:enpix/services/storage/remote_usage_provider.dart';
+import 'package:enpix/services/storage/s3_config_service.dart';
 
-/// Dashboard overview — storage stats, backup activity, device health.
+/// Dashboard overview - storage stats, backup activity, device health.
 ///
 /// Design decisions:
-/// - fl_chart visualizations for storage and activity
+/// - Real data from S3 LIST aggregation, upload tracker, and device registry
 /// - iOS 18 grouped card style
-/// - Pull-to-refresh for real-time data
+/// - Pull-to-refresh invalidates providers for fresh data
 /// - Informational at a glance, actionable via settings
 class OverviewScreen extends ConsumerStatefulWidget {
-  const OverviewScreen({super.key});
+  final VoidCallback? onNavigateToSettings;
+
+  const OverviewScreen({super.key, this.onNavigateToSettings});
 
   @override
   ConsumerState<OverviewScreen> createState() => _OverviewScreenState();
 }
+
+/// Upload counts per day for the last 7 days, for the activity chart.
+final _uploadActivityProvider = FutureProvider.autoDispose<List<int>>((ref) {
+  return ref.watch(uploadTrackerProvider).countsPerDay(7);
+});
 
 class _OverviewScreenState extends ConsumerState<OverviewScreen> {
   @override
@@ -29,7 +40,9 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
   }
 
   Future<void> _onRefresh() async {
-    setState(() {});
+    ref.invalidate(remoteUsageProvider);
+    ref.invalidate(deviceListProvider);
+    ref.invalidate(_uploadActivityProvider);
   }
 
   @override
@@ -45,13 +58,13 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
         child: ListView(
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
           children: [
-            _StorageCard(),
+            _StorageCard(onNavigateToSettings: widget.onNavigateToSettings),
             const SizedBox(height: AppSpacing.sm),
-            _BackupActivityCard(),
+            const _BackupActivityCard(),
             const SizedBox(height: AppSpacing.sm),
-            _DeviceStatusCard(),
+            const _DeviceStatusCard(),
             const SizedBox(height: AppSpacing.sm),
-            _SystemStatusCard(),
+            const _SystemStatusCard(),
             const SizedBox(height: AppSpacing.xxxxl),
           ],
         ),
@@ -63,13 +76,13 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
 // ── Storage Card ──
 
 class _StorageCard extends ConsumerWidget {
+  final VoidCallback? onNavigateToSettings;
+
+  const _StorageCard({this.onNavigateToSettings});
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final task = ref.watch(backupManagerProvider);
-    final totalBytes = task.totalBytes;
-    final usedGb = totalBytes / (1024 * 1024 * 1024);
-    final displayUsed = usedGb > 0 ? usedGb.toStringAsFixed(1) : '0';
-    final percentage = (usedGb / 50.0).clamp(0.0, 1.0);
+    final configured = ref.watch(s3ConfiguredProvider);
 
     return _DashboardCard(
       child: Column(
@@ -77,8 +90,9 @@ class _StorageCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.cloud_rounded, size: 18, color: context.colors.brandBlue),
-              SizedBox(width: AppSpacing.sm),
+              Icon(Icons.cloud_rounded,
+                  size: 18, color: context.colors.brandBlue),
+              const SizedBox(width: AppSpacing.sm),
               Text(
                 '存储用量',
                 style: TextStyle(
@@ -90,60 +104,114 @@ class _StorageCard extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.lg),
-          Row(
-            children: [
-              // Donut chart
-              SizedBox(
-                width: 100,
-                height: 100,
-                child: PieChart(
-                  PieChartData(
-                    sections: [
-                      PieChartSectionData(
-                        value: percentage * 100,
-                        color: context.colors.brandBlue,
-                        radius: 22,
-                        showTitle: false,
-                      ),
-                      PieChartSectionData(
-                        value: (1 - percentage) * 100,
-                        color: context.colors.fillPrimary,
-                        radius: 22,
-                        showTitle: false,
-                      ),
-                    ],
-                    sectionsSpace: 0,
-                    centerSpaceRadius: 32,
+          configured.when(
+            loading: () => const SizedBox(
+              height: 28,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+            error: (_, __) => _storageHint(context, '无法读取配置'),
+            data: (isConfigured) => isConfigured
+                ? _StorageUsage(onNavigateToSettings: onNavigateToSettings)
+                : _storageHint(
+                    context,
+                    '未配置 S3',
+                    action: onNavigateToSettings == null
+                        ? null
+                        : _SettingsAction(onNavigateToSettings!),
                   ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.xl),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '$displayUsed GB',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w700,
-                        color: context.colors.labelPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xxs),
-                    Text(
-                      '已用 / 总计 50 GB',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: context.colors.labelSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    EnpixMiniProgress(value: percentage),
-                  ],
-                ),
-              ),
-            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _storageHint(BuildContext context, String text, {Widget? action}) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: context.colors.labelSecondary,
+            ),
+          ),
+        ),
+        if (action != null) action,
+      ],
+    );
+  }
+}
+
+class _SettingsAction extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  const _SettingsAction(this.onPressed);
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: onPressed,
+      child: const Text('去配置'),
+    );
+  }
+}
+
+class _StorageUsage extends ConsumerWidget {
+  final VoidCallback? onNavigateToSettings;
+
+  const _StorageUsage({this.onNavigateToSettings});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final usage = ref.watch(remoteUsageProvider);
+    return usage.when(
+      loading: () => const SizedBox(
+        height: 28,
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      ),
+      error: (e, _) => Text(
+        '读取失败',
+        style: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: context.colors.brandRed,
+        ),
+      ),
+      data: (bytes) => Row(
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: [
+          Text(
+            _formatBytes(bytes),
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              color: context.colors.labelPrimary,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          Text(
+            '已用',
+            style: TextStyle(
+              fontSize: 14,
+              color: context.colors.labelSecondary,
+            ),
           ),
         ],
       ),
@@ -154,6 +222,8 @@ class _StorageCard extends ConsumerWidget {
 // ── Backup Activity Card ──
 
 class _BackupActivityCard extends ConsumerWidget {
+  const _BackupActivityCard();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final task = ref.watch(backupManagerProvider);
@@ -164,8 +234,9 @@ class _BackupActivityCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.bar_chart_rounded, size: 18, color: context.colors.brandGreen),
-              SizedBox(width: AppSpacing.sm),
+              Icon(Icons.bar_chart_rounded,
+                  size: 18, color: context.colors.brandGreen),
+              const SizedBox(width: AppSpacing.sm),
               Text(
                 '备份活动',
                 style: TextStyle(
@@ -204,19 +275,58 @@ class _BackupActivityCard extends ConsumerWidget {
               ),
             ],
           ),
-          if (task.totalCount > 0) ...[
-            const SizedBox(height: AppSpacing.lg),
-            _MiniBarChart(),
-          ],
+          const SizedBox(height: AppSpacing.lg),
+          const _ActivityBarChart(),
         ],
       ),
     );
   }
 }
 
-class _MiniBarChart extends StatelessWidget {
-  // Placeholder activity data for the last 7 days
-  final List<int> bars = const [3, 1, 0, 5, 2, 4, 1];
+class _ActivityBarChart extends ConsumerWidget {
+  const _ActivityBarChart();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activity = ref.watch(_uploadActivityProvider);
+    return activity.when(
+      loading: () => const SizedBox(
+        height: 60,
+        child: Center(
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      ),
+      error: (_, __) => const SizedBox(height: 60),
+      data: (bars) {
+        final total = bars.fold<int>(0, (a, b) => a + b);
+        if (total == 0) {
+          return SizedBox(
+            height: 60,
+            child: Center(
+              child: Text(
+                '最近 7 天暂无备份活动',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: context.colors.labelTertiary,
+                ),
+              ),
+            ),
+          );
+        }
+        return _BarChart(bars: bars);
+      },
+    );
+  }
+}
+
+class _BarChart extends StatelessWidget {
+  final List<int> bars;
+
+  const _BarChart({required this.bars});
 
   @override
   Widget build(BuildContext context) {
@@ -302,16 +412,21 @@ class _MiniBarChart extends StatelessWidget {
 // ── Device Status Card ──
 
 class _DeviceStatusCard extends ConsumerWidget {
+  const _DeviceStatusCard();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final devices = ref.watch(deviceListProvider);
+
     return _DashboardCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.devices_rounded, size: 18, color: context.colors.brandPurple),
-              SizedBox(width: AppSpacing.sm),
+              Icon(Icons.devices_rounded,
+                  size: 18, color: context.colors.brandPurple),
+              const SizedBox(width: AppSpacing.sm),
               Text(
                 '设备',
                 style: TextStyle(
@@ -323,22 +438,62 @@ class _DeviceStatusCard extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          _DeviceRow(
-            icon: Icons.phone_iphone_rounded,
-            name: '本机',
-            status: '已注册',
-            isCurrent: true,
-          ),
-          const Divider(indent: 0),
-          _DeviceRow(
-            icon: Icons.phone_android_rounded,
-            name: '其他设备',
-            status: '云端查看',
-            isCurrent: false,
+          devices.when(
+            loading: () => const _DeviceRow(
+              icon: Icons.phone_iphone_rounded,
+              name: '加载中…',
+              status: '',
+              isCurrent: false,
+            ),
+            error: (_, __) => const _DeviceRow(
+              icon: Icons.error_outline_rounded,
+              name: '读取失败',
+              status: '',
+              isCurrent: false,
+            ),
+            data: (registry) {
+              if (registry.devices.isEmpty) {
+                return const _DeviceRow(
+                  icon: Icons.phone_iphone_rounded,
+                  name: '暂无设备',
+                  status: '完成首次备份后将出现',
+                  isCurrent: false,
+                );
+              }
+              return Column(
+                children: [
+                  for (var i = 0; i < registry.devices.length; i++) ...[
+                    if (i > 0) const Divider(indent: 0),
+                    _DeviceRow(
+                      icon: _deviceIcon(
+                        registry.devices[i].deviceId,
+                        registry.currentDeviceId,
+                      ),
+                      name: registry.devices[i].name,
+                      status: registry.devices[i].deviceId ==
+                              registry.currentDeviceId
+                          ? '本机'
+                          : '云端查看',
+                      isCurrent: registry.devices[i].deviceId ==
+                          registry.currentDeviceId,
+                    ),
+                  ],
+                ],
+              );
+            },
           ),
         ],
       ),
     );
+  }
+
+  IconData _deviceIcon(String deviceId, String currentDeviceId) {
+    if (deviceId == currentDeviceId) {
+      return defaultTargetPlatform == TargetPlatform.iOS
+          ? Icons.phone_iphone_rounded
+          : Icons.phone_android_rounded;
+    }
+    return Icons.devices_rounded;
   }
 }
 
@@ -374,13 +529,14 @@ class _DeviceRow extends StatelessWidget {
                     color: context.colors.labelPrimary,
                   ),
                 ),
-                Text(
-                  status,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: context.colors.labelSecondary,
+                if (status.isNotEmpty)
+                  Text(
+                    status,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: context.colors.labelSecondary,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -412,6 +568,8 @@ class _DeviceRow extends StatelessWidget {
 // ── System Status Card ──
 
 class _SystemStatusCard extends ConsumerWidget {
+  const _SystemStatusCard();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final credService = ref.read(credentialServiceProvider);
@@ -423,8 +581,9 @@ class _SystemStatusCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.info_rounded, size: 18, color: context.colors.brandGray),
-              SizedBox(width: AppSpacing.sm),
+              Icon(Icons.info_rounded,
+                  size: 18, color: context.colors.brandGray),
+              const SizedBox(width: AppSpacing.sm),
               Text(
                 '系统状态',
                 style: TextStyle(
@@ -440,8 +599,9 @@ class _SystemStatusCard extends ConsumerWidget {
             icon: Icons.lock_rounded,
             label: '数据加密',
             status: isSessionActive ? '已就绪' : '未就绪',
-            statusColor:
-                isSessionActive ? context.colors.brandGreen : context.colors.brandOrange,
+            statusColor: isSessionActive
+                ? context.colors.brandGreen
+                : context.colors.brandOrange,
           ),
           const Divider(indent: 0),
           _StatusRow(
@@ -584,31 +744,11 @@ class _StatBadge extends StatelessWidget {
   }
 }
 
-class EnpixMiniProgress extends StatelessWidget {
-  final double value;
-
-  const EnpixMiniProgress({super.key, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 6,
-      decoration: BoxDecoration(
-        color: context.colors.fillPrimary,
-        borderRadius: BorderRadius.circular(3),
-      ),
-      child: FractionallySizedBox(
-        alignment: Alignment.centerLeft,
-        widthFactor: value.clamp(0.0, 1.0),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [context.colors.brandBlue, context.colors.brandTeal],
-            ),
-            borderRadius: BorderRadius.circular(3),
-          ),
-        ),
-      ),
-    );
+String _formatBytes(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  if (bytes < 1024 * 1024 * 1024) {
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
+  return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
 }

@@ -15,9 +15,7 @@ import 'widgets/about_section.dart';
 /// - Pull-to-refresh to reload state (e.g. after passphrase change)
 /// - Consistent iOS grouped card layout
 class SettingsScreen extends ConsumerStatefulWidget {
-  final ValueNotifier<int>? reloadNotifier;
-
-  const SettingsScreen({super.key, this.reloadNotifier});
+  const SettingsScreen({super.key});
 
   @override
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
@@ -25,31 +23,11 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
-  void initState() {
-    super.initState();
-    widget.reloadNotifier?.addListener(_reload);
-  }
-
-  @override
-  void dispose() {
-    widget.reloadNotifier?.removeListener(_reload);
-    super.dispose();
-  }
-
-  void _reload() => setState(() {});
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.colors.backgroundPrimary,
       appBar: AppBar(
         title: const Text('设置'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: () => setState(() {}),
-          ),
-        ],
       ),
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),

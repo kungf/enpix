@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/services/providers.dart';
-import 'package:enpix/services/crypto/credential_service.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_section.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_list_tile.dart';
 import 'package:enpix/presentation/screens/settings/dialogs/setup_password_dialog.dart';
@@ -21,6 +20,7 @@ class SecuritySection extends ConsumerStatefulWidget {
 class _SecuritySectionState extends ConsumerState<SecuritySection> {
   @override
   Widget build(BuildContext context) {
+    ref.watch(sessionTickProvider);
     final cred = ref.watch(credentialServiceProvider);
     final isActive = cred.isSessionActive;
 
@@ -29,7 +29,8 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
       children: [
         EnpixListTile(
           icon: Icons.lock_rounded,
-          iconColor: isActive ? context.colors.brandGreen : context.colors.brandGray,
+          iconColor:
+              isActive ? context.colors.brandGreen : context.colors.brandGray,
           title: '加密密码',
           subtitle: isActive ? '已设置' : '未设置',
           trailing: isActive
@@ -65,14 +66,17 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
     try {
       final kek = await cred.setupPassphrase(pw);
       cred.startSession(kek);
+      ref.read(sessionTickProvider.notifier).state++;
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text('加密密码已设置'), backgroundColor: context.colors.brandGreen));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('加密密码已设置'),
+            backgroundColor: context.colors.brandGreen));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('设置失败: $e'), backgroundColor: context.colors.brandRed));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('设置失败: $e'),
+            backgroundColor: context.colors.brandRed));
       }
     }
   }
@@ -85,8 +89,8 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
       await cred.verifyPassphrase(oldPw);
     } on Exception {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text('密码错误'), backgroundColor: context.colors.brandRed));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('密码错误'), backgroundColor: context.colors.brandRed));
       }
       return;
     }
@@ -96,14 +100,17 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
 
     try {
       await cred.changePassphrase(oldPw, newPw);
+      ref.read(sessionTickProvider.notifier).state++;
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text('密码已更新'), backgroundColor: context.colors.brandGreen));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('密码已更新'),
+            backgroundColor: context.colors.brandGreen));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('修改失败: $e'), backgroundColor: context.colors.brandRed));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('修改失败: $e'),
+            backgroundColor: context.colors.brandRed));
       }
     }
   }
@@ -114,8 +121,8 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
 
     if (cred.sessionMasterKey == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text('请先解锁'), backgroundColor: context.colors.brandRed));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('请先解锁'), backgroundColor: context.colors.brandRed));
       }
       return;
     }
@@ -132,14 +139,17 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(confirmed == true ? '恢复密钥已备份' : '请稍后备份恢复密钥'),
-            backgroundColor: confirmed == true ? context.colors.brandGreen : context.colors.brandOrange,
+            backgroundColor: confirmed == true
+                ? context.colors.brandGreen
+                : context.colors.brandOrange,
           ));
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('备份失败: $e'), backgroundColor: context.colors.brandRed));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('备份失败: $e'),
+            backgroundColor: context.colors.brandRed));
       }
     }
   }

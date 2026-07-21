@@ -13,6 +13,7 @@ import 'package:enpix/presentation/shared/widgets/enpix_error_state.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_progress.dart';
 import 'package:enpix/presentation/shared/widgets/photo_viewer.dart';
 import 'package:enpix/presentation/shared/widgets/backup_progress_widgets.dart';
+import 'package:enpix/presentation/shared/utils/format_duration.dart';
 import 'package:enpix/services/upload/backup_task.dart';
 
 /// Local photo browser — device photos grouped by day.
@@ -177,6 +178,28 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
     }
     if (!await _configureS3()) return;
     await manager.startFull();
+    final ids = await ref.read(uploadTrackerProvider).uploadedAssetIds;
+    if (mounted) setState(() => _uploadedIds.addAll(ids));
+  }
+
+  /// Upload only the assets the user selected in selection mode.
+  Future<void> _uploadSelected() async {
+    final selectedAssets =
+        _assets.where((a) => _selected.contains(a.id)).toList();
+    _exitSelection();
+    if (selectedAssets.isEmpty) return;
+
+    final credService = ref.read(credentialServiceProvider);
+    if (!credService.isSessionActive) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('请先在设置中设置加密密码')),
+        );
+      }
+      return;
+    }
+    if (!await _configureS3()) return;
+    await ref.read(backupManagerProvider.notifier).start(selectedAssets);
     final ids = await ref.read(uploadTrackerProvider).uploadedAssetIds;
     if (mounted) setState(() => _uploadedIds.addAll(ids));
   }
@@ -357,6 +380,13 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
       ),
       body: _buildBody(),
       floatingActionButton: _buildFab(),
+      bottomNavigationBar: _selectionMode && _selected.isNotEmpty
+          ? _SelectionActionBar(
+              count: _selected.length,
+              onUpload: _uploadSelected,
+              onCancel: _exitSelection,
+            )
+          : null,
     );
   }
 
@@ -431,7 +461,7 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
   }
 
   Widget? _buildFab() {
-    if (!_hasPermission) return null;
+    if (!_hasPermission || _selectionMode) return null;
     final task = ref.watch(backupManagerProvider);
     if (task.isRunning || task.isDone) {
       return _AnimatedBackupFab(task: task, onTap: _showBackupProgress);
@@ -442,6 +472,46 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
       backgroundColor: context.colors.brandBlue,
       child:
           const Icon(Icons.cloud_upload_rounded, color: Colors.white, size: 24),
+    );
+  }
+}
+
+/// Bottom action bar shown in selection mode: upload selected / cancel.
+class _SelectionActionBar extends StatelessWidget {
+  final int count;
+  final Future<void> Function() onUpload;
+  final VoidCallback onCancel;
+
+  const _SelectionActionBar({
+    required this.count,
+    required this.onUpload,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Container(
+        decoration: BoxDecoration(
+          color: context.colors.backgroundSecondary,
+          border: Border(
+            top: BorderSide(color: context.colors.separator, width: 0.5),
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+        child: Row(
+          children: [
+            TextButton(onPressed: onCancel, child: const Text('取消')),
+            const Spacer(),
+            FilledButton.icon(
+              onPressed: onUpload,
+              icon: const Icon(Icons.cloud_upload_rounded, size: 18),
+              label: Text('上传所选 ($count)'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -638,7 +708,7 @@ class _AssetThumbState extends State<_AssetThumb> {
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     Icon(Icons.play_arrow_rounded,
                         size: 14, color: Colors.white),
-                    Text('${widget.asset.duration}s',
+                    Text(formatDuration(widget.asset.duration),
                         style: TextStyle(color: Colors.white, fontSize: 10)),
                   ]),
                 )),
