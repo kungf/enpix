@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
 
 /// Empty state with icon, title, subtitle, and optional action button.
@@ -29,18 +29,18 @@ class EnpixEmptyState extends StatelessWidget {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: AppColors.fillSecondary,
+                color: context.colors.fillSecondary,
                 borderRadius: BorderRadius.circular(AppRadius.xl),
               ),
-              child: Icon(icon, size: 36, color: AppColors.brandGray),
+              child: Icon(icon, size: 36, color: context.colors.brandGray),
             ),
             const SizedBox(height: AppSpacing.lg),
             Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.w600,
-                color: AppColors.labelPrimary,
+                color: context.colors.labelPrimary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -48,9 +48,9 @@ class EnpixEmptyState extends StatelessWidget {
               const SizedBox(height: AppSpacing.sm),
               Text(
                 subtitle!,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15,
-                  color: AppColors.labelSecondary,
+                  color: context.colors.labelSecondary,
                 ),
                 textAlign: TextAlign.center,
               ),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
 import 'package:enpix/services/providers.dart';
 
@@ -35,7 +35,7 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundPrimary,
+      backgroundColor: context.colors.backgroundPrimary,
       appBar: AppBar(
         title: const Text('概览'),
         centerTitle: true,
@@ -75,16 +75,16 @@ class _StorageCard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.cloud_rounded, size: 18, color: AppColors.brandBlue),
+              Icon(Icons.cloud_rounded, size: 18, color: context.colors.brandBlue),
               SizedBox(width: AppSpacing.sm),
               Text(
                 '存储用量',
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.labelPrimary,
+                  color: context.colors.labelPrimary,
                 ),
               ),
             ],
@@ -101,13 +101,13 @@ class _StorageCard extends ConsumerWidget {
                     sections: [
                       PieChartSectionData(
                         value: percentage * 100,
-                        color: AppColors.brandBlue,
+                        color: context.colors.brandBlue,
                         radius: 22,
                         showTitle: false,
                       ),
                       PieChartSectionData(
                         value: (1 - percentage) * 100,
-                        color: AppColors.fillPrimary,
+                        color: context.colors.fillPrimary,
                         radius: 22,
                         showTitle: false,
                       ),
@@ -124,18 +124,18 @@ class _StorageCard extends ConsumerWidget {
                   children: [
                     Text(
                       '$displayUsed GB',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.labelPrimary,
+                        color: context.colors.labelPrimary,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.xxs),
-                    const Text(
+                    Text(
                       '已用 / 总计 50 GB',
                       style: TextStyle(
                         fontSize: 14,
-                        color: AppColors.labelSecondary,
+                        color: context.colors.labelSecondary,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
@@ -162,16 +162,16 @@ class _BackupActivityCard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.bar_chart_rounded, size: 18, color: AppColors.brandGreen),
+              Icon(Icons.bar_chart_rounded, size: 18, color: context.colors.brandGreen),
               SizedBox(width: AppSpacing.sm),
               Text(
                 '备份活动',
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.labelPrimary,
+                  color: context.colors.labelPrimary,
                 ),
               ),
             ],
@@ -182,7 +182,7 @@ class _BackupActivityCard extends ConsumerWidget {
             children: [
               _StatBadge(
                 icon: Icons.check_circle_rounded,
-                iconColor: AppColors.brandGreen,
+                iconColor: context.colors.brandGreen,
                 value: '${task.completedCount}',
                 label: '已完成',
               ),
@@ -190,15 +190,15 @@ class _BackupActivityCard extends ConsumerWidget {
               _StatBadge(
                 icon: Icons.error_outline_rounded,
                 iconColor: task.failedCount > 0
-                    ? AppColors.brandRed
-                    : AppColors.labelTertiary,
+                    ? context.colors.brandRed
+                    : context.colors.labelTertiary,
                 value: '${task.failedCount}',
                 label: '失败',
               ),
               const SizedBox(width: AppSpacing.xl),
               _StatBadge(
                 icon: Icons.skip_next_rounded,
-                iconColor: AppColors.labelSecondary,
+                iconColor: context.colors.labelSecondary,
                 value: '${task.skippedCount}',
                 label: '跳过',
               ),
@@ -225,9 +225,9 @@ class _MiniBarChart extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           '最近 7 天',
-          style: TextStyle(fontSize: 13, color: AppColors.labelSecondary),
+          style: TextStyle(fontSize: 13, color: context.colors.labelSecondary),
         ),
         const SizedBox(height: AppSpacing.sm),
         SizedBox(
@@ -252,9 +252,9 @@ class _MiniBarChart extends StatelessWidget {
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
                           days[idx],
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 10,
-                            color: AppColors.labelTertiary,
+                            color: context.colors.labelTertiary,
                           ),
                         ),
                       );
@@ -281,8 +281,8 @@ class _MiniBarChart extends StatelessWidget {
                     BarChartRodData(
                       toY: bars[i].toDouble(),
                       color: bars[i] > 0
-                          ? AppColors.brandBlue
-                          : AppColors.fillPrimary,
+                          ? context.colors.brandBlue
+                          : context.colors.fillPrimary,
                       width: 8,
                       borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(3),
@@ -308,16 +308,16 @@ class _DeviceStatusCard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.devices_rounded, size: 18, color: AppColors.brandPurple),
+              Icon(Icons.devices_rounded, size: 18, color: context.colors.brandPurple),
               SizedBox(width: AppSpacing.sm),
               Text(
                 '设备',
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.labelPrimary,
+                  color: context.colors.labelPrimary,
                 ),
               ),
             ],
@@ -361,7 +361,7 @@ class _DeviceRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: AppColors.brandGray),
+          Icon(icon, size: 20, color: context.colors.brandGray),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
@@ -369,16 +369,16 @@ class _DeviceRow extends StatelessWidget {
               children: [
                 Text(
                   name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
-                    color: AppColors.labelPrimary,
+                    color: context.colors.labelPrimary,
                   ),
                 ),
                 Text(
                   status,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
-                    color: AppColors.labelSecondary,
+                    color: context.colors.labelSecondary,
                   ),
                 ),
               ],
@@ -391,15 +391,15 @@ class _DeviceRow extends StatelessWidget {
                 vertical: AppSpacing.xxs,
               ),
               decoration: BoxDecoration(
-                color: AppColors.brandGreen.withAlpha(20),
+                color: context.colors.brandGreen.withAlpha(20),
                 borderRadius: BorderRadius.circular(AppRadius.xs),
               ),
-              child: const Text(
+              child: Text(
                 '当前',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
-                  color: AppColors.brandGreen,
+                  color: context.colors.brandGreen,
                 ),
               ),
             ),
@@ -421,16 +421,16 @@ class _SystemStatusCard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.info_rounded, size: 18, color: AppColors.brandGray),
+              Icon(Icons.info_rounded, size: 18, color: context.colors.brandGray),
               SizedBox(width: AppSpacing.sm),
               Text(
                 '系统状态',
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.labelPrimary,
+                  color: context.colors.labelPrimary,
                 ),
               ),
             ],
@@ -441,7 +441,7 @@ class _SystemStatusCard extends ConsumerWidget {
             label: '数据加密',
             status: isSessionActive ? '已就绪' : '未就绪',
             statusColor:
-                isSessionActive ? AppColors.brandGreen : AppColors.brandOrange,
+                isSessionActive ? context.colors.brandGreen : context.colors.brandOrange,
           ),
           const Divider(indent: 0),
           _StatusRow(
@@ -449,15 +449,15 @@ class _SystemStatusCard extends ConsumerWidget {
             label: '连接状态',
             status: isSessionActive ? '已配置' : '待配置',
             statusColor: isSessionActive
-                ? AppColors.labelSecondary
-                : AppColors.brandOrange,
+                ? context.colors.labelSecondary
+                : context.colors.brandOrange,
           ),
           const Divider(indent: 0),
           _StatusRow(
             icon: Icons.cleaning_services_rounded,
             label: '本地清理',
             status: '按需运行',
-            statusColor: AppColors.labelSecondary,
+            statusColor: context.colors.labelSecondary,
           ),
         ],
       ),
@@ -484,14 +484,14 @@ class _StatusRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: AppColors.brandGray),
+          Icon(icon, size: 18, color: context.colors.brandGray),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 15,
-                color: AppColors.labelPrimary,
+                color: context.colors.labelPrimary,
               ),
             ),
           ),
@@ -535,7 +535,7 @@ class _DashboardCard extends StatelessWidget {
       ),
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.backgroundSecondary,
+        color: context.colors.backgroundSecondary,
         borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: child,
@@ -565,17 +565,17 @@ class _StatBadge extends StatelessWidget {
           const SizedBox(height: AppSpacing.xs),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w700,
-              color: AppColors.labelPrimary,
+              color: context.colors.labelPrimary,
             ),
           ),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
-              color: AppColors.labelSecondary,
+              color: context.colors.labelSecondary,
             ),
           ),
         ],
@@ -594,7 +594,7 @@ class EnpixMiniProgress extends StatelessWidget {
     return Container(
       height: 6,
       decoration: BoxDecoration(
-        color: AppColors.fillPrimary,
+        color: context.colors.fillPrimary,
         borderRadius: BorderRadius.circular(3),
       ),
       child: FractionallySizedBox(
@@ -602,8 +602,8 @@ class EnpixMiniProgress extends StatelessWidget {
         widthFactor: value.clamp(0.0, 1.0),
         child: Container(
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [AppColors.brandBlue, AppColors.brandTeal],
+            gradient: LinearGradient(
+              colors: [context.colors.brandBlue, context.colors.brandTeal],
             ),
             borderRadius: BorderRadius.circular(3),
           ),

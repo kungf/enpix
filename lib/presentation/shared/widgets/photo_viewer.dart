@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:photo_manager/photo_manager.dart';
-import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
 
 /// Full-resolution image loader with fallback.
@@ -118,14 +118,14 @@ class _PhotoViewerState extends State<PhotoViewer> {
     final asset = widget.assets[_currentIndex];
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.backgroundSecondary.withAlpha(240),
+      backgroundColor: context.colors.backgroundSecondary.withAlpha(240),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl))),
       builder: (_) => Padding(
         padding: const EdgeInsets.all(AppSpacing.xl),
         child: Column(
           mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('信息', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.labelPrimary)),
+             Text('信息', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: context.colors.labelPrimary)),
             const SizedBox(height: AppSpacing.lg),
             _infoRow('类型', asset.type == AssetType.image ? '照片' : '视频'),
             _infoRow('拍摄时间', '${asset.createDateTime.year}-${asset.createDateTime.month.toString().padLeft(2, '0')}-${asset.createDateTime.day.toString().padLeft(2, '0')}'),
@@ -141,8 +141,8 @@ class _PhotoViewerState extends State<PhotoViewer> {
   Widget _infoRow(String label, String value) => Padding(
     padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
     child: Row(children: [
-      SizedBox(width: 72, child: Text(label, style: const TextStyle(fontSize: 14, color: AppColors.labelSecondary))),
-      Expanded(child: Text(value, style: const TextStyle(fontSize: 14, color: AppColors.labelPrimary))),
+      SizedBox(width: 72, child: Text(label, style:  TextStyle(fontSize: 14, color: context.colors.labelSecondary))),
+      Expanded(child: Text(value, style:  TextStyle(fontSize: 14, color: context.colors.labelPrimary))),
     ]),
   );
 }

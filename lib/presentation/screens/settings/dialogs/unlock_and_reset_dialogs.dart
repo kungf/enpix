@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
 
 /// Dialog to unlock KEK session with passphrase.
@@ -59,7 +59,7 @@ Future<bool?> showResetDialog(BuildContext context) {
         TextButton(onPressed: () => Navigator.pop(_, false), child: const Text('取消')),
         FilledButton(
           onPressed: () => Navigator.pop(_, true),
-          style: FilledButton.styleFrom(backgroundColor: AppColors.brandRed),
+          style: FilledButton.styleFrom(backgroundColor: context.colors.brandRed),
           child: const Text('重置'),
         ),
       ],

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
 
 /// Dialog that displays the 24-word recovery mnemonic and asks the user
@@ -34,16 +34,16 @@ class _RecoveryKeyDialogState extends State<_RecoveryKeyDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               '请用纸笔抄写以下 24 个单词，并妥善保管。\n\n'
               '如果你忘记密码，这是恢复数据的唯一方式。',
-              style: TextStyle(fontSize: 14, color: AppColors.labelSecondary),
+              style: TextStyle(fontSize: 14, color: context.colors.labelSecondary),
             ),
             const SizedBox(height: AppSpacing.lg),
             Container(
               padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
-                color: AppColors.fillSecondary,
+                color: context.colors.fillSecondary,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Wrap(
@@ -53,7 +53,7 @@ class _RecoveryKeyDialogState extends State<_RecoveryKeyDialog> {
                   return Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: AppColors.backgroundPrimary,
+                      color: context.colors.backgroundPrimary,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
@@ -158,9 +158,9 @@ class _RecoveryInputDialogState extends State<_RecoveryInputDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               '输入之前备份的 24 个恢复密钥单词，以恢复对加密数据的访问。',
-              style: TextStyle(fontSize: 14, color: AppColors.labelSecondary),
+              style: TextStyle(fontSize: 14, color: context.colors.labelSecondary),
             ),
             const SizedBox(height: AppSpacing.lg),
             TextField(

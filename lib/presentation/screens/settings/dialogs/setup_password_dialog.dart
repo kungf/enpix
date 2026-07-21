@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
 
 enum _Strength { none, weak, fair, good, strong }
@@ -53,17 +53,17 @@ class _SetupPasswordDialogState extends State<_SetupPasswordDialog> {
   Widget _buildStrengthBar() {
     final (label, color, w) = switch (_strength) {
       _Strength.none => ('', Colors.transparent, 0.0),
-      _Strength.weak => ('弱', AppColors.brandRed, 0.25),
-      _Strength.fair => ('一般', AppColors.brandOrange, 0.5),
-      _Strength.good => ('好', AppColors.brandGreen, 0.75),
-      _Strength.strong => ('强', AppColors.brandGreen, 1.0),
+      _Strength.weak => ('弱', context.colors.brandRed, 0.25),
+      _Strength.fair => ('一般', context.colors.brandOrange, 0.5),
+      _Strength.good => ('好', context.colors.brandGreen, 0.75),
+      _Strength.strong => ('强', context.colors.brandGreen, 1.0),
     };
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const SizedBox(height: AppSpacing.sm),
+      SizedBox(height: AppSpacing.sm),
       ClipRRect(borderRadius: BorderRadius.circular(2),
-        child: LinearProgressIndicator(value: w, minHeight: 4, backgroundColor: AppColors.fillPrimary, color: color)),
+        child: LinearProgressIndicator(value: w, minHeight: 4, backgroundColor: context.colors.fillPrimary, color: color)),
       if (label.isNotEmpty) Padding(
-        padding: const EdgeInsets.only(top: 2),
+        padding: EdgeInsets.only(top: 2),
         child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w500))),
     ]);
   }
@@ -71,25 +71,25 @@ class _SetupPasswordDialogState extends State<_SetupPasswordDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('设置加密密码'),
+      title: Text('设置加密密码'),
       content: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Container(
-            padding: const EdgeInsets.all(AppSpacing.md),
+            padding: EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
-              color: AppColors.brandOrange.withAlpha(20), borderRadius: BorderRadius.circular(AppRadius.sm),
-              border: Border.all(color: AppColors.brandOrange.withAlpha(60))),
-            child: const Row(children: [
-              Icon(Icons.shield_rounded, size: 20, color: AppColors.brandOrange),
+              color: context.colors.brandOrange.withAlpha(20), borderRadius: BorderRadius.circular(AppRadius.sm),
+              border: Border.all(color: context.colors.brandOrange.withAlpha(60))),
+            child: Row(children: [
+              Icon(Icons.shield_rounded, size: 20, color: context.colors.brandOrange),
               SizedBox(width: AppSpacing.sm),
-              Expanded(child: Text('端到端加密', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.brandOrange))),
+              Expanded(child: Text('端到端加密', style: TextStyle(fontWeight: FontWeight.w600, color: context.colors.brandOrange))),
             ]),
           ),
           const SizedBox(height: AppSpacing.md),
           const Text('你的照片会在上传前加密，服务器无法查看内容。', style: TextStyle(fontSize: 13)),
           const SizedBox(height: AppSpacing.sm),
-          const Text('⚠️ 请牢记此密码。忘记密码将无法解密照片，且无法恢复。',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.brandRed)),
+          Text('⚠️ 请牢记此密码。忘记密码将无法解密照片，且无法恢复。',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: context.colors.brandRed)),
           const SizedBox(height: AppSpacing.lg),
           TextField(
             controller: _pwCtrl, obscureText: _obscurePw,
@@ -113,7 +113,7 @@ class _SetupPasswordDialogState extends State<_SetupPasswordDialog> {
           ),
           if (_errorText != null) Padding(
             padding: const EdgeInsets.only(top: AppSpacing.sm),
-            child: Text(_errorText!, style: const TextStyle(color: AppColors.brandRed, fontSize: 12))),
+            child: Text(_errorText!, style:  TextStyle(color: context.colors.brandRed, fontSize: 12))),
         ]),
       ),
       actions: [

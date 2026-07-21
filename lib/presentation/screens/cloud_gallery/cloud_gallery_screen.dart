@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
 import 'package:enpix/services/crypto/crypto_service.dart';
 import 'package:enpix/services/storage/s3_service.dart';
@@ -312,7 +312,7 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('下载失败: $e'), backgroundColor: AppColors.brandRed));
+            content: Text('下载失败: $e'), backgroundColor: context.colors.brandRed));
       }
     }
   }
@@ -334,7 +334,7 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundPrimary,
+      backgroundColor: context.colors.backgroundPrimary,
       appBar: AppBar(
         title: const Text('云端'),
         actions: [
@@ -355,7 +355,7 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
   Widget _buildDeviceSelector() {
     return Container(
       height: 48,
-      color: AppColors.backgroundSecondary,
+      color: context.colors.backgroundSecondary,
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(
@@ -381,14 +381,14 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
         selected: selected,
         avatar: Icon(icon,
             size: 16,
-            color: selected ? AppColors.brandBlue : AppColors.labelSecondary),
+            color: selected ? context.colors.brandBlue : context.colors.labelSecondary),
         label: Text(label),
         onSelected: (_) => _onDeviceSelected(deviceId),
-        selectedColor: AppColors.brandBlue.withAlpha(25),
+        selectedColor: context.colors.brandBlue.withAlpha(25),
         labelStyle: TextStyle(
             fontSize: 14,
             fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-            color: selected ? AppColors.brandBlue : AppColors.labelPrimary),
+            color: selected ? context.colors.brandBlue : context.colors.labelPrimary),
         showCheckmark: false,
         side: BorderSide.none,
       ),
@@ -504,31 +504,31 @@ class _CloudDaySectionWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(
-        padding: const EdgeInsets.fromLTRB(
+        padding: EdgeInsets.fromLTRB(
             AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.sm),
         child: Row(children: [
           Text(section.label,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.labelPrimary,
+                  color: context.colors.labelPrimary,
                   letterSpacing: -0.5)),
-          const SizedBox(width: AppSpacing.sm),
+          SizedBox(width: AppSpacing.sm),
           Container(
-            padding: const EdgeInsets.symmetric(
+            padding: EdgeInsets.symmetric(
                 horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
             decoration: BoxDecoration(
-                color: AppColors.fillSecondary,
+                color: context.colors.fillSecondary,
                 borderRadius: BorderRadius.circular(AppRadius.sm)),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.cloud_rounded,
-                  size: 12, color: AppColors.labelSecondary),
+              Icon(Icons.cloud_rounded,
+                  size: 12, color: context.colors.labelSecondary),
               const SizedBox(width: AppSpacing.xxs),
               Text('${section.thumbs.length}',
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.labelSecondary)),
+                      color: context.colors.labelSecondary)),
             ]),
           ),
         ]),
@@ -536,8 +536,8 @@ class _CloudDaySectionWidget extends StatelessWidget {
       GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 2),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        padding: EdgeInsets.symmetric(horizontal: 2),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 3, crossAxisSpacing: 2, mainAxisSpacing: 2),
         itemCount: section.thumbs.length,
         itemBuilder: (context, index) => _CloudThumbWidget(
@@ -555,7 +555,7 @@ class _CloudThumbWidget extends StatefulWidget {
   final _CloudThumb thumb;
   final Future<Uint8List?> Function(_CloudThumb) loadThumb;
   final VoidCallback onTap;
-  const _CloudThumbWidget(
+  _CloudThumbWidget(
       {required this.thumb, required this.loadThumb, required this.onTap});
   @override
   State<_CloudThumbWidget> createState() => _CloudThumbWidgetState();
@@ -592,9 +592,9 @@ class _CloudThumbWidgetState extends State<_CloudThumbWidget> {
               : _data != null
                   ? Image.memory(_data!, fit: BoxFit.cover)
                   : Container(
-                      color: AppColors.fillSecondary,
-                      child: const Icon(Icons.broken_image_outlined,
-                          color: AppColors.brandGray, size: 32)),
+                      color: context.colors.fillSecondary,
+                      child: Icon(Icons.broken_image_outlined,
+                          color: context.colors.brandGray, size: 32)),
         ),
         // Encryption badge
         Positioned(
@@ -604,7 +604,7 @@ class _CloudThumbWidgetState extends State<_CloudThumbWidget> {
                 width: 20,
                 height: 20,
                 decoration: BoxDecoration(
-                    color: AppColors.brandPurple.withAlpha(180),
+                    color: context.colors.brandPurple.withAlpha(180),
                     borderRadius: BorderRadius.circular(AppRadius.xxs)),
                 child: const Icon(Icons.lock_rounded,
                     size: 12, color: Colors.white))),

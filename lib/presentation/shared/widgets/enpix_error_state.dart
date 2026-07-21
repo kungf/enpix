@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
 
 /// Error state with title, subtitle, retry action, and optional extra action.
@@ -29,22 +29,22 @@ class EnpixErrorState extends StatelessWidget {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: AppColors.brandRed.withAlpha(15),
+                color: context.colors.brandRed.withAlpha(15),
                 borderRadius: BorderRadius.circular(AppRadius.xl),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.error_outline_rounded,
                 size: 36,
-                color: AppColors.brandRed,
+                color: context.colors.brandRed,
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
             Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.w600,
-                color: AppColors.labelPrimary,
+                color: context.colors.labelPrimary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -52,9 +52,9 @@ class EnpixErrorState extends StatelessWidget {
               const SizedBox(height: AppSpacing.sm),
               Text(
                 subtitle!,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15,
-                  color: AppColors.labelSecondary,
+                  color: context.colors.labelSecondary,
                 ),
                 textAlign: TextAlign.center,
               ),

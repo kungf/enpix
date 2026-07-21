@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
 import 'package:enpix/core/errors/storage_exception.dart';
 import 'package:enpix/domain/entities/storage_config.dart';
@@ -59,13 +59,13 @@ class _StorageSectionState extends ConsumerState<StorageSection> {
       final msg = await ref.read(s3ServiceProvider).testConnection();
       if (mounted) {
         setState(() { _testResult = true; _testing = false; });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: AppColors.brandGreen));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: context.colors.brandGreen));
       }
     } catch (e) {
       if (mounted) {
         setState(() { _testResult = false; _testing = false; });
         final msg = e is StorageException ? e.message : '连接失败: $e';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: AppColors.brandRed));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: context.colors.brandRed));
       }
     }
   }
@@ -90,11 +90,11 @@ class _StorageSectionState extends ConsumerState<StorageSection> {
     }
     try {
       await cred.saveS3Credentials(ak, sk);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('S3 凭证已保存'), backgroundColor: AppColors.brandGreen));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('S3 凭证已保存'), backgroundColor: context.colors.brandGreen));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('保存失败: $e'), backgroundColor: AppColors.brandRed));
+        content: Text('保存失败: $e'), backgroundColor: context.colors.brandRed));
     }
   }
 
@@ -126,7 +126,7 @@ class _StorageSectionState extends ConsumerState<StorageSection> {
                 icon: _testing
                     ? const EnpixCircularProgress(size: 18)
                     : Icon(_testResult == true ? Icons.check_circle_rounded : _testResult == false ? Icons.error_rounded : Icons.wifi_find_rounded,
-                        size: 18, color: _testResult == true ? AppColors.brandGreen : _testResult == false ? AppColors.brandRed : null),
+                        size: 18, color: _testResult == true ? context.colors.brandGreen : _testResult == false ? context.colors.brandRed : null),
                 label: Text(_testResult == true ? '连接成功' : _testResult == false ? '连接失败' : '测试连接'),
               ),
               const Spacer(),

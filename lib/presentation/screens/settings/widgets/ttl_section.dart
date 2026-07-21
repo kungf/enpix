@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
 import 'package:enpix/services/providers.dart';
 import 'package:enpix/services/ttl/ttl_config.dart';
@@ -70,20 +70,20 @@ class _TtlSectionState extends ConsumerState<TtlSection> {
   Widget _buildTimeSlider() => Padding(
     padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.md),
     child: Row(children: [
-      Text('${_timeDays.toInt()} 天前', style: const TextStyle(fontSize: 13, color: AppColors.labelSecondary)),
+      Text('${_timeDays.toInt()} 天前', style:  TextStyle(fontSize: 13, color: context.colors.labelSecondary)),
       Expanded(child: Slider(value: _timeDays, min: 1, max: 365, divisions: 50,
         onChanged: (v) => setState(() => _timeDays = v), onChangeEnd: (_) => _save())),
-      SizedBox(width: 50, child: Text('${_timeDays.toInt()}天', style: const TextStyle(fontSize: 13, color: AppColors.labelSecondary))),
+      SizedBox(width: 50, child: Text('${_timeDays.toInt()}天', style:  TextStyle(fontSize: 13, color: context.colors.labelSecondary))),
     ]),
   );
 
   Widget _buildSizeSlider() => Padding(
     padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.md),
     child: Row(children: [
-      const Text('上限: ', style: TextStyle(fontSize: 13, color: AppColors.labelSecondary)),
+       Text('上限: ', style: TextStyle(fontSize: 13, color: context.colors.labelSecondary)),
       Expanded(child: Slider(value: _sizeGb, min: 5, max: 500, divisions: 99,
         onChanged: (v) => setState(() => _sizeGb = v), onChangeEnd: (_) => _save())),
-      SizedBox(width: 50, child: Text('${_sizeGb.toInt()}GB', style: const TextStyle(fontSize: 13, color: AppColors.labelSecondary))),
+      SizedBox(width: 50, child: Text('${_sizeGb.toInt()}GB', style:  TextStyle(fontSize: 13, color: context.colors.labelSecondary))),
     ]),
   );
 }

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
 
 /// Enpix grouped section — iOS 18 style with rounded card and optional header/footer.
@@ -36,8 +36,8 @@ class EnpixSection extends StatelessWidget {
               ),
               child: Text(
                 header!.toUpperCase(),
-                style: const TextStyle(
-                  color: AppColors.labelSecondary,
+                style: TextStyle(
+                  color: context.colors.labelSecondary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                   letterSpacing: 0.5,
@@ -46,12 +46,12 @@ class EnpixSection extends StatelessWidget {
             ),
           Container(
             decoration: BoxDecoration(
-              color: AppColors.backgroundSecondary,
+              color: context.colors.backgroundSecondary,
               borderRadius: BorderRadius.circular(AppRadius.md),
             ),
             clipBehavior: Clip.antiAlias,
             child: Column(
-              children: _buildChildrenWithDividers(),
+              children: _buildChildrenWithDividers(context.colors.separator),
             ),
           ),
           if (footer != null)
@@ -63,8 +63,8 @@ class EnpixSection extends StatelessWidget {
               ),
               child: Text(
                 footer!,
-                style: const TextStyle(
-                  color: AppColors.labelSecondary,
+                style: TextStyle(
+                  color: context.colors.labelSecondary,
                   fontSize: 13,
                 ),
               ),
@@ -74,7 +74,7 @@ class EnpixSection extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildChildrenWithDividers() {
+  List<Widget> _buildChildrenWithDividers(Color separatorColor) {
     final widgets = <Widget>[];
     for (var i = 0; i < children.length; i++) {
       widgets.add(children[i]);
@@ -84,7 +84,7 @@ class EnpixSection extends StatelessWidget {
             padding: const EdgeInsets.only(left: 52),
             child: Container(
               height: 0.5,
-              color: AppColors.separator,
+              color: separatorColor,
             ),
           ),
         );

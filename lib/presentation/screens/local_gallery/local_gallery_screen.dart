@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:enpix/core/constants/app_constants.dart';
-import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
 import 'package:enpix/services/providers.dart';
 import 'package:enpix/domain/entities/storage_config.dart';
@@ -222,8 +222,8 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
             constraints: BoxConstraints(
               maxHeight: MediaQuery.of(context).size.height * 0.85,
             ),
-            decoration: const BoxDecoration(
-              color: AppColors.backgroundSecondary,
+            decoration: BoxDecoration(
+              color: context.colors.backgroundSecondary,
               borderRadius:
                   BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
             ),
@@ -235,7 +235,7 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
                   width: 36,
                   height: 5,
                   decoration: BoxDecoration(
-                    color: AppColors.separatorOpaque,
+                    color: context.colors.separatorOpaque,
                     borderRadius: BorderRadius.circular(2.5),
                   ),
                 ),
@@ -251,8 +251,8 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
                         if (task.currentFileName != null) ...[
                           const SizedBox(height: AppSpacing.md),
                           Text(task.currentFileName!,
-                              style: const TextStyle(
-                                  color: AppColors.labelSecondary,
+                              style: TextStyle(
+                                  color: context.colors.labelSecondary,
                                   fontSize: 13)),
                         ],
                         const SizedBox(height: AppSpacing.xl),
@@ -261,9 +261,9 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
                         const SizedBox(height: AppSpacing.xl),
                         ProgressActions(task: task, manager: manager),
                         if (task.errors.isNotEmpty) ...[
-                          const SizedBox(height: AppSpacing.lg),
-                          const Divider(),
-                          const SizedBox(height: AppSpacing.lg),
+                          SizedBox(height: AppSpacing.lg),
+                          Divider(),
+                          SizedBox(height: AppSpacing.lg),
                           ErrorList(
                               errors: task.errors,
                               onReport: () async {
@@ -271,10 +271,10 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
                                   await manager.reportErrors(task.errors);
                                   if (mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
+                                      SnackBar(
                                           content: Text('错误报告已上传'),
                                           backgroundColor:
-                                              AppColors.brandGreen),
+                                              context.colors.brandGreen),
                                     );
                                   }
                                 } catch (e) {
@@ -371,7 +371,7 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundPrimary,
+      backgroundColor: context.colors.backgroundPrimary,
       appBar: AppBar(
         title: const Text('照片'),
         actions: _selectionMode
@@ -467,7 +467,7 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
     if (_assets.isEmpty) return null;
     return FloatingActionButton(
       onPressed: _startBackup,
-      backgroundColor: AppColors.brandBlue,
+      backgroundColor: context.colors.brandBlue,
       child:
           const Icon(Icons.cloud_upload_rounded, color: Colors.white, size: 24),
     );
@@ -513,14 +513,14 @@ class _TypeFilter extends StatelessWidget {
               selected: s,
               avatar: Icon(icon,
                   size: 16,
-                  color: s ? AppColors.brandBlue : AppColors.labelSecondary),
+                  color: s ? context.colors.brandBlue : context.colors.labelSecondary),
               label: Text(label),
               onSelected: (_) => onChanged(key),
-              selectedColor: AppColors.brandBlue.withAlpha(25),
+              selectedColor: context.colors.brandBlue.withAlpha(25),
               labelStyle: TextStyle(
                   fontSize: 14,
                   fontWeight: s ? FontWeight.w600 : FontWeight.w500,
-                  color: s ? AppColors.brandBlue : AppColors.labelPrimary),
+                  color: s ? context.colors.brandBlue : context.colors.labelPrimary),
               showCheckmark: false,
               side: BorderSide.none,
             ),
@@ -541,7 +541,7 @@ class _DaySectionWidget extends StatelessWidget {
   final void Function(AssetEntity) onTap;
   final void Function(AssetEntity) onLongPress;
 
-  const _DaySectionWidget(
+  _DaySectionWidget(
       {required this.section,
       required this.selectionMode,
       required this.isSelected,
@@ -555,28 +555,28 @@ class _DaySectionWidget extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(
+          padding: EdgeInsets.fromLTRB(
               AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.sm),
           child: Row(
             children: [
               Text(section.label,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.labelPrimary,
+                      color: context.colors.labelPrimary,
                       letterSpacing: -0.5)),
-              const SizedBox(width: AppSpacing.sm),
+              SizedBox(width: AppSpacing.sm),
               Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
                 decoration: BoxDecoration(
-                    color: AppColors.fillSecondary,
+                    color: context.colors.fillSecondary,
                     borderRadius: BorderRadius.circular(AppRadius.sm)),
                 child: Text('${section.assets.length}',
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.labelSecondary)),
+                        color: context.colors.labelSecondary)),
               ),
             ],
           ),
@@ -631,7 +631,7 @@ class _AssetThumbState extends State<_AssetThumb> {
 
   Future<void> _loadThumb() async {
     final data = await widget.asset.thumbnailDataWithSize(
-        const ThumbnailSize(256, 256),
+        ThumbnailSize(256, 256),
         format: ThumbnailFormat.jpeg);
     if (mounted) setState(() => _thumb = data);
   }
@@ -648,7 +648,7 @@ class _AssetThumbState extends State<_AssetThumb> {
               borderRadius: BorderRadius.circular(AppRadius.xxs),
               child: _thumb != null
                   ? Image.memory(_thumb!, fit: BoxFit.cover)
-                  : Container(color: AppColors.fillSecondary)),
+                  : Container(color: context.colors.fillSecondary)),
           if (widget.asset.type == AssetType.video)
             Positioned(
                 bottom: 4,
@@ -660,11 +660,11 @@ class _AssetThumbState extends State<_AssetThumb> {
                       color: Colors.black54,
                       borderRadius: BorderRadius.circular(3)),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.play_arrow_rounded,
+                    Icon(Icons.play_arrow_rounded,
                         size: 14, color: Colors.white),
                     Text('${widget.asset.duration}s',
                         style:
-                            const TextStyle(color: Colors.white, fontSize: 10)),
+                            TextStyle(color: Colors.white, fontSize: 10)),
                   ]),
                 )),
           if (widget.isUploaded && !widget.selected)
@@ -674,23 +674,23 @@ class _AssetThumbState extends State<_AssetThumb> {
                 child: Container(
                     width: 16,
                     height: 16,
-                    decoration: const BoxDecoration(
-                        color: AppColors.brandGreen, shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                        color: context.colors.brandGreen, shape: BoxShape.circle),
                     child: const Icon(Icons.cloud_done_rounded,
                         size: 10, color: Colors.white))),
           if (widget.selected)
             Container(
               decoration: BoxDecoration(
-                color: AppColors.brandBlue.withAlpha(60),
-                border: Border.all(color: AppColors.brandBlue, width: 2),
+                color: context.colors.brandBlue.withAlpha(60),
+                border: Border.all(color: context.colors.brandBlue, width: 2),
                 borderRadius: BorderRadius.circular(AppRadius.xxs),
               ),
-              child: const Align(
+              child: Align(
                   alignment: Alignment.topRight,
                   child: Padding(
                     padding: EdgeInsets.all(4),
                     child: Icon(Icons.check_circle_rounded,
-                        color: AppColors.brandBlue, size: 22),
+                        color: context.colors.brandBlue, size: 22),
                   )),
             ),
         ],
@@ -791,7 +791,7 @@ class _AnimatedBackupFabState extends State<_AnimatedBackupFab>
     final isGreen = widget.task.isRunning || _showCheckmark;
     return FloatingActionButton(
       onPressed: widget.onTap,
-      backgroundColor: isGreen ? AppColors.brandGreen : AppColors.brandBlue,
+      backgroundColor: isGreen ? context.colors.brandGreen : context.colors.brandBlue,
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -890,11 +890,11 @@ class _SelectionCount extends StatelessWidget {
           padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
           decoration: BoxDecoration(
-              color: AppColors.brandBlue.withAlpha(25),
+              color: context.colors.brandBlue.withAlpha(25),
               borderRadius: BorderRadius.circular(AppRadius.sm)),
           child: Text('已选 $count',
-              style: const TextStyle(
-                  color: AppColors.brandBlue,
+              style: TextStyle(
+                  color: context.colors.brandBlue,
                   fontWeight: FontWeight.w600,
                   fontSize: 14)),
         ),

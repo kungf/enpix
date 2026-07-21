@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
 import 'package:enpix/services/upload/backup_task.dart';
 import 'package:enpix/services/upload/backup_manager.dart';
@@ -14,15 +14,15 @@ class ProgressHeader extends StatelessWidget {
   Widget build(BuildContext context) => Row(children: [
     Container(width: 40, height: 40,
       decoration: BoxDecoration(
-        color: (task.isRunning ? AppColors.brandBlue : AppColors.brandGreen).withAlpha(25),
+        color: (task.isRunning ? context.colors.brandBlue : context.colors.brandGreen).withAlpha(25),
         borderRadius: BorderRadius.circular(AppRadius.sm)),
       child: Icon(task.isRunning ? Icons.cloud_upload_rounded : Icons.check_circle_rounded,
-          color: task.isRunning ? AppColors.brandBlue : AppColors.brandGreen, size: 24)),
+          color: task.isRunning ? context.colors.brandBlue : context.colors.brandGreen, size: 24)),
     const SizedBox(width: AppSpacing.md),
     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(task.isRunning ? '正在备份...' : '备份完成',
-          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.labelPrimary)),
-      Text(task.progressText, style: const TextStyle(fontSize: 13, color: AppColors.labelSecondary)),
+          style:  TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: context.colors.labelPrimary)),
+      Text(task.progressText, style:  TextStyle(fontSize: 13, color: context.colors.labelSecondary)),
     ])),
   ]);
 }
@@ -35,15 +35,15 @@ class BandwidthInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(AppSpacing.md),
-    decoration: BoxDecoration(color: AppColors.fillSecondary, borderRadius: BorderRadius.circular(AppRadius.sm)),
+    decoration: BoxDecoration(color: context.colors.fillSecondary, borderRadius: BorderRadius.circular(AppRadius.sm)),
     child: Row(children: [
-      const Icon(Icons.speed_rounded, size: 16, color: AppColors.labelSecondary),
+       Icon(Icons.speed_rounded, size: 16, color: context.colors.labelSecondary),
       const SizedBox(width: AppSpacing.sm),
-      Text(task.bandwidthText, style: const TextStyle(fontSize: 13, color: AppColors.labelSecondary)),
+      Text(task.bandwidthText, style:  TextStyle(fontSize: 13, color: context.colors.labelSecondary)),
       const SizedBox(width: AppSpacing.lg),
-      const Icon(Icons.upload_file_rounded, size: 16, color: AppColors.labelSecondary),
+       Icon(Icons.upload_file_rounded, size: 16, color: context.colors.labelSecondary),
       const SizedBox(width: AppSpacing.sm),
-      Text(task.throughputText, style: const TextStyle(fontSize: 13, color: AppColors.labelSecondary)),
+      Text(task.throughputText, style:  TextStyle(fontSize: 13, color: context.colors.labelSecondary)),
     ]),
   );
 }
@@ -58,11 +58,11 @@ class ProgressActions extends StatelessWidget {
   Widget build(BuildContext context) => Row(children: [
     if (task.failedCount > 0)
       Container(padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
-        decoration: BoxDecoration(color: AppColors.brandRed.withAlpha(25), borderRadius: BorderRadius.circular(AppRadius.sm)),
+        decoration: BoxDecoration(color: context.colors.brandRed.withAlpha(25), borderRadius: BorderRadius.circular(AppRadius.sm)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.error_outline_rounded, size: 14, color: AppColors.brandRed),
+           Icon(Icons.error_outline_rounded, size: 14, color: context.colors.brandRed),
           const SizedBox(width: AppSpacing.xs),
-          Text('${task.failedCount} 失败', style: const TextStyle(fontSize: 13, color: AppColors.brandRed)),
+          Text('${task.failedCount} 失败', style:  TextStyle(fontSize: 13, color: context.colors.brandRed)),
         ])),
     const Spacer(),
     TextButton.icon(
@@ -89,22 +89,22 @@ class _ErrorListState extends State<ErrorList> {
     InkWell(onTap: () => setState(() => _expanded = !_expanded), child: Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
       child: Row(children: [
-        const Icon(Icons.error_outline_rounded, size: 16, color: AppColors.brandRed),
+         Icon(Icons.error_outline_rounded, size: 16, color: context.colors.brandRed),
         const SizedBox(width: AppSpacing.sm),
         Text('查看失败详情 (${widget.errors.length})',
-            style: const TextStyle(fontSize: 13, color: AppColors.brandRed)),
+            style:  TextStyle(fontSize: 13, color: context.colors.brandRed)),
         const Spacer(),
         Icon(_expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
-            size: 18, color: AppColors.labelSecondary),
+            size: 18, color: context.colors.labelSecondary),
       ]),
     )),
     if (_expanded) ...[
       Container(constraints: const BoxConstraints(maxHeight: 200),
-        decoration: BoxDecoration(color: AppColors.brandRed.withAlpha(15), borderRadius: BorderRadius.circular(AppRadius.sm)),
+        decoration: BoxDecoration(color: context.colors.brandRed.withAlpha(15), borderRadius: BorderRadius.circular(AppRadius.sm)),
         child: ListView.separated(shrinkWrap: true, padding: const EdgeInsets.all(AppSpacing.md),
           itemCount: widget.errors.length, separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
           itemBuilder: (_, i) => Text(widget.errors[i],
-              style: const TextStyle(fontSize: 12, color: AppColors.brandRed)))),
+              style:  TextStyle(fontSize: 12, color: context.colors.brandRed)))),
       const SizedBox(height: AppSpacing.sm),
       Align(alignment: Alignment.centerRight,
         child: TextButton.icon(

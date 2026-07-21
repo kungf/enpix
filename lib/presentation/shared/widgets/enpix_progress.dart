@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/context_ext.dart';
 
 /// Enpix linear progress bar — iOS 18 style.
 class EnpixLinearProgress extends StatelessWidget {
@@ -21,7 +21,7 @@ class EnpixLinearProgress extends StatelessWidget {
     return Container(
       height: height,
       decoration: BoxDecoration(
-        color: backgroundColor ?? AppColors.fillPrimary,
+        color: backgroundColor ?? context.colors.fillPrimary,
         borderRadius: BorderRadius.circular(height / 2),
       ),
       child: FractionallySizedBox(
@@ -29,7 +29,7 @@ class EnpixLinearProgress extends StatelessWidget {
         widthFactor: value.clamp(0.0, 1.0),
         child: Container(
           decoration: BoxDecoration(
-            color: valueColor ?? AppColors.brandBlue,
+            color: valueColor ?? context.colors.brandBlue,
             borderRadius: BorderRadius.circular(height / 2),
           ),
         ),
@@ -60,7 +60,7 @@ class EnpixCircularProgress extends StatelessWidget {
         value: value,
         strokeWidth: 2.5,
         valueColor: AlwaysStoppedAnimation<Color>(
-          color ?? AppColors.brandBlue,
+          color ?? context.colors.brandBlue,
         ),
       ),
     );

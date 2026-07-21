@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
 
 /// Skeleton / shimmer placeholder for async content loading.
@@ -48,7 +48,7 @@ class _EnpixSkeletonState extends State<EnpixSkeleton>
           width: widget.width,
           height: widget.height,
           decoration: BoxDecoration(
-            color: AppColors.fillPrimary.withAlpha((opacity * 255).toInt()),
+            color: context.colors.fillPrimary.withAlpha((opacity * 255).toInt()),
             borderRadius: BorderRadius.circular(widget.borderRadius),
           ),
         );

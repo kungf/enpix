@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
 import 'package:enpix/services/providers.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_section.dart';
@@ -29,10 +29,10 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
     return EnpixSection(
       header: '关于',
       children: [
-        _infoTile('版本', '0.1.0', Icons.info_outline_rounded, AppColors.brandBlue),
+        _infoTile('版本', '0.1.0', Icons.info_outline_rounded, context.colors.brandBlue),
         FutureBuilder<String?>(
           future: _cachedFingerprint,
-          builder: (_, s) => _infoTile('KEK 指纹', s.data?.substring(0, 12) ?? '—', Icons.fingerprint_rounded, AppColors.brandGray),
+          builder: (_, s) => _infoTile('KEK 指纹', s.data?.substring(0, 12) ?? '—', Icons.fingerprint_rounded, context.colors.brandGray),
         ),
         const Divider(indent: 52),
         InkWell(
@@ -41,9 +41,9 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
             child: Row(children: [
               Icon(_showTechInfo ? Icons.expand_less_rounded : Icons.expand_more_rounded,
-                  size: 20, color: AppColors.labelSecondary),
+                  size: 20, color: context.colors.labelSecondary),
               const SizedBox(width: AppSpacing.sm),
-              Text('技术信息', style: const TextStyle(fontSize: 15, color: AppColors.labelSecondary)),
+              Text('技术信息', style:  TextStyle(fontSize: 15, color: context.colors.labelSecondary)),
             ]),
           ),
         ),
@@ -64,8 +64,8 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
   Widget _infoRow(String label, String value) => Padding(
     padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.sm),
     child: Row(children: [
-      SizedBox(width: 80, child: Text(label, style: const TextStyle(fontSize: 15, color: AppColors.labelSecondary))),
-      Expanded(child: Text(value, style: const TextStyle(fontSize: 15, color: AppColors.labelPrimary, fontFamily: 'monospace'))),
+      SizedBox(width: 80, child: Text(label, style:  TextStyle(fontSize: 15, color: context.colors.labelSecondary))),
+      Expanded(child: Text(value, style:  TextStyle(fontSize: 15, color: context.colors.labelPrimary, fontFamily: 'monospace'))),
     ]),
   );
 }

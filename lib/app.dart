@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'core/theme/app_theme.dart';
-import 'core/theme/app_colors.dart';
+import 'core/theme/context_ext.dart';
 import 'core/theme/app_spacing.dart';
 import 'presentation/screens/settings/settings_screen.dart';
 import 'presentation/screens/local_gallery/local_gallery_screen.dart';
@@ -28,6 +28,8 @@ class SeePhotoApp extends StatelessWidget {
       title: 'Enpix',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.system,
       initialRoute: isFirstRun ? '/setup' : '/',
       routes: {
         '/': (_) => const MainScreen(),
@@ -88,10 +90,10 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     return <Widget>[
       supportsPhotos
           ? const LocalGalleryScreen()
-          : const _TabScreen(
+          : _TabScreen(
               title: '本地',
               icon: Icons.photo_library_rounded,
-              color: AppColors.brandBlue,
+              color: context.colors.brandBlue,
             ),
       CloudGalleryScreen(
         onNavigateToSettings: () => setState(() => _currentIndex = 3),
@@ -165,13 +167,13 @@ class _TabScreen extends StatelessWidget {
             Text(
               'Enpix v0.1.0',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.labelSecondary,
+                    color: context.colors.labelSecondary,
                   ),
             ),
             const SizedBox(height: AppSpacing.xxl),
-            const Text(
+            Text(
               '端到端加密 · S3 备份 · 跨平台',
-              style: TextStyle(color: AppColors.labelSecondary),
+              style: TextStyle(color: context.colors.labelSecondary),
             ),
           ],
         ),
@@ -198,10 +200,10 @@ class SetupScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
+              Icon(
                 Icons.security_rounded,
                 size: 80,
-                color: AppColors.brandBlue,
+                color: context.colors.brandBlue,
               ),
               const SizedBox(height: AppSpacing.xxl),
               Text(
@@ -212,7 +214,7 @@ class SetupScreen extends StatelessWidget {
               Text(
                 '端到端加密照片备份',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: AppColors.labelSecondary,
+                      color: context.colors.labelSecondary,
                     ),
               ),
               const SizedBox(height: AppSpacing.xxxl),

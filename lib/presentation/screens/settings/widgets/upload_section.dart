@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_section.dart';
 
@@ -49,7 +49,7 @@ class _UploadSectionState extends State<UploadSection> {
           Row(
             children: [
               Text('拍摄于 ${_delayDays.toInt()} ${_unitHours ? '小时' : '天'}前',
-                  style: const TextStyle(fontSize: 13, color: AppColors.labelSecondary)),
+                  style:  TextStyle(fontSize: 13, color: context.colors.labelSecondary)),
               const Spacer(),
               _UnitSegment(
                 isHours: _unitHours,
@@ -81,7 +81,7 @@ class _UnitSegment extends StatelessWidget {
     return Container(
       height: 28,
       decoration: BoxDecoration(
-        color: AppColors.fillPrimary,
+        color: context.colors.fillPrimary,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
@@ -125,7 +125,7 @@ class _UnitSegmentButton extends StatelessWidget {
         alignment: Alignment.center,
         height: 28,
         decoration: BoxDecoration(
-          color: selected ? AppColors.brandBlue : Colors.transparent,
+          color: selected ? context.colors.brandBlue : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
         ),
         child: Text(
@@ -133,7 +133,7 @@ class _UnitSegmentButton extends StatelessWidget {
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: selected ? Colors.white : AppColors.labelPrimary,
+            color: selected ? Colors.white : context.colors.labelPrimary,
           ),
         ),
       ),

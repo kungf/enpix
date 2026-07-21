@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/services/providers.dart';
 import 'package:enpix/services/crypto/credential_service.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_section.dart';
@@ -29,7 +29,7 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
       children: [
         EnpixListTile(
           icon: Icons.lock_rounded,
-          iconColor: isActive ? AppColors.brandGreen : AppColors.brandGray,
+          iconColor: isActive ? context.colors.brandGreen : context.colors.brandGray,
           title: '加密密码',
           subtitle: isActive ? '已设置' : '未设置',
           trailing: isActive
@@ -45,7 +45,7 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
         if (isActive) ...[
           EnpixListTile(
             icon: Icons.key_rounded,
-            iconColor: AppColors.brandPurple,
+            iconColor: context.colors.brandPurple,
             title: '备份恢复密钥',
             subtitle: '忘记密码时恢复数据的唯一方式',
             trailing: TextButton(
@@ -67,12 +67,12 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
       cred.startSession(kek);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('加密密码已设置'), backgroundColor: AppColors.brandGreen));
+           SnackBar(content: Text('加密密码已设置'), backgroundColor: context.colors.brandGreen));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('设置失败: $e'), backgroundColor: AppColors.brandRed));
+          SnackBar(content: Text('设置失败: $e'), backgroundColor: context.colors.brandRed));
       }
     }
   }
@@ -86,7 +86,7 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
     } on Exception {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('密码错误'), backgroundColor: AppColors.brandRed));
+           SnackBar(content: Text('密码错误'), backgroundColor: context.colors.brandRed));
       }
       return;
     }
@@ -98,12 +98,12 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
       await cred.changePassphrase(oldPw, newPw);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('密码已更新'), backgroundColor: AppColors.brandGreen));
+           SnackBar(content: Text('密码已更新'), backgroundColor: context.colors.brandGreen));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('修改失败: $e'), backgroundColor: AppColors.brandRed));
+          SnackBar(content: Text('修改失败: $e'), backgroundColor: context.colors.brandRed));
       }
     }
   }
@@ -115,7 +115,7 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
     if (cred.sessionMasterKey == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('请先解锁'), backgroundColor: AppColors.brandRed));
+           SnackBar(content: Text('请先解锁'), backgroundColor: context.colors.brandRed));
       }
       return;
     }
@@ -132,14 +132,14 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(confirmed == true ? '恢复密钥已备份' : '请稍后备份恢复密钥'),
-            backgroundColor: confirmed == true ? AppColors.brandGreen : AppColors.brandOrange,
+            backgroundColor: confirmed == true ? context.colors.brandGreen : context.colors.brandOrange,
           ));
         }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('备份失败: $e'), backgroundColor: AppColors.brandRed));
+          SnackBar(content: Text('备份失败: $e'), backgroundColor: context.colors.brandRed));
       }
     }
   }

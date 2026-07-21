@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:enpix/core/theme/app_colors.dart';
+import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
 
 /// Enpix list tile — icon badge + title + subtitle + optional trailing widget.
@@ -39,13 +39,13 @@ class EnpixListTile extends StatelessWidget {
               width: 30,
               height: 30,
               decoration: BoxDecoration(
-                color: (iconColor ?? AppColors.brandBlue).withAlpha(30),
+                color: (iconColor ?? context.colors.brandBlue).withAlpha(30),
                 borderRadius: BorderRadius.circular(AppRadius.xs),
               ),
               child: Icon(
                 icon,
                 size: 17,
-                color: iconColor ?? AppColors.brandBlue,
+                color: iconColor ?? context.colors.brandBlue,
               ),
             ),
             const SizedBox(width: AppSpacing.md),
@@ -56,19 +56,19 @@ class EnpixListTile extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w400,
-                      color: AppColors.labelPrimary,
+                      color: context.colors.labelPrimary,
                     ),
                   ),
                   if (subtitle != null) ...[
                     const SizedBox(height: 2),
                     Text(
                       subtitle!,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
-                        color: AppColors.labelSecondary,
+                        color: context.colors.labelSecondary,
                       ),
                     ),
                   ],
@@ -79,10 +79,10 @@ class EnpixListTile extends StatelessWidget {
             if (trailing != null) trailing!,
             // Chevron (if no trailing and has onTap)
             if (trailing == null && onTap != null)
-              const Icon(
+              Icon(
                 Icons.chevron_right_rounded,
                 size: 20,
-                color: AppColors.labelTertiary,
+                color: context.colors.labelTertiary,
               ),
           ],
         ),
