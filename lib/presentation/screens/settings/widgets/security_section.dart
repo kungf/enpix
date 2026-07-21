@@ -105,6 +105,7 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
       return;
     }
 
+    if (!mounted) return;
     final newPw = await showSetupPasswordDialog(context);
     if (newPw == null || newPw.isEmpty) return;
 

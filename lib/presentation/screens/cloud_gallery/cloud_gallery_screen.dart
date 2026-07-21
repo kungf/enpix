@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -263,10 +264,12 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
         return;
       }
       if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => const Center(child: EnpixCircularProgress()),
+        unawaited(
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => const Center(child: EnpixCircularProgress()),
+          ),
         );
       }
 
@@ -293,9 +296,11 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
 
       if (mounted) {
         Navigator.pop(context);
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => _FullScreenImage(data: decrypted),
+        unawaited(
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => _FullScreenImage(data: decrypted),
+            ),
           ),
         );
       }

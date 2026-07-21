@@ -68,7 +68,6 @@ dev_dependencies:
   mocktail: ^1.0.0
   flutter_lints: ^5.0.0
 
-  crypto: any
 flutter:
   uses-material-design: true
 

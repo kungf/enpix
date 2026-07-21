@@ -157,10 +157,11 @@ void main() async {
     );
     if (r.statusCode == 200) {
       ok('LIST permission OK');
-    } else if (r.statusCode == 403)
+    } else if (r.statusCode == 403) {
       fail('LIST denied (403)');
-    else
+    } else {
       fail('Unexpected status: ${r.statusCode}');
+    }
   } catch (e) {
     fail('LIST failed: $e');
   }
@@ -187,10 +188,11 @@ void main() async {
     );
     if (r.statusCode == 200) {
       ok('PUT permission OK');
-    } else if (r.statusCode == 403)
+    } else if (r.statusCode == 403) {
       fail('PUT denied (403)');
-    else
+    } else {
       fail('Unexpected status: ${r.statusCode}');
+    }
   } catch (e) {
     fail('PUT failed: $e');
   }
@@ -204,12 +206,13 @@ void main() async {
     );
     if (r.statusCode == 200) {
       ok('HEAD object OK');
-    } else if (r.statusCode == 403)
+    } else if (r.statusCode == 403) {
       fail('HEAD denied (403)');
-    else if (r.statusCode == 404)
-      fail('Object not found (404) — PUT may have failed');
-    else
+    } else if (r.statusCode == 404) {
+      fail('Object not found (404) - PUT may have failed');
+    } else {
       fail('Unexpected status: ${r.statusCode}');
+    }
   } catch (e) {
     fail('HEAD failed: $e');
   }
@@ -226,10 +229,11 @@ void main() async {
     );
     if (r.statusCode == 200) {
       ok('GET permission OK');
-    } else if (r.statusCode == 403)
+    } else if (r.statusCode == 403) {
       fail('GET denied (403)');
-    else
+    } else {
       fail('Unexpected status: ${r.statusCode}');
+    }
   } catch (e) {
     fail('GET failed: $e');
   }

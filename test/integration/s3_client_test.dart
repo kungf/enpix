@@ -310,7 +310,7 @@ void main() async {
     swP
       ..reset()
       ..start();
-    final r = await dio.get(
+    await dio.get(
       '/$_bucket/$bigKey',
       options: Options(
         headers: auth('GET', '/$_bucket/$bigKey'),

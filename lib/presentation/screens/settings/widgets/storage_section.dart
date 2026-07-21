@@ -126,6 +126,7 @@ class _StorageSectionState extends ConsumerState<StorageSection> {
     await cred.saveS3Region(rg.isNotEmpty ? rg : 'default');
     final ak = _akCtrl.text.trim();
     final sk = _skCtrl.text.trim();
+    if (!mounted) return;
     if (ak.isEmpty || sk.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Access Key 和 Secret Key 不能为空')),

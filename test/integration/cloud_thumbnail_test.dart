@@ -1,3 +1,5 @@
+// ignore_for_file: unused_local_variable
+
 /// E2E Cloud Thumbnail Pipeline Test
 ///
 /// Tests the full flow:
@@ -62,8 +64,9 @@ String sign(
   final canonicalQuery = queryParams
       .map(
         (e) => e.value
-            .map((v) =>
-                '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(v)}')
+            .map(
+              (v) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(v)}',
+            )
             .join('&'),
       )
       .join('&');

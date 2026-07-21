@@ -161,10 +161,11 @@ void main() async {
       'Content-Type': 'application/octet-stream',
       'Content-Length': data.length.toString(),
     };
-    if (meta != null)
+    if (meta != null) {
       for (final e in meta.entries) {
         extra['x-amz-meta-${e.key}'] = e.value;
       }
+    }
     final r = await dio.put(
       '/$_bucket/$key',
       data: Stream.value(data),

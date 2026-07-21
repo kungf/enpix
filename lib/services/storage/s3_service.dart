@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
@@ -20,10 +21,10 @@ class S3Service {
           ),
         ) {
     // Reuse TCP connections — avoids handshake per request during bulk upload.
-    (_dio.httpClientAdapter as IOHttpClientAdapter).onHttpClientCreate =
-        (client) {
+    (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+      final client = HttpClient();
       client.idleTimeout = const Duration(seconds: 30);
-      return null;
+      return client;
     };
     // autoUncompress must be true (the default) so that S3/MinIO gzip-compressed
     // XML responses (LIST results > threshold) are auto-decompressed by the

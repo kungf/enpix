@@ -70,16 +70,16 @@ class _UnlockDialogState extends State<_UnlockDialog> {
 Future<bool?> showResetDialog(BuildContext context) {
   return showDialog<bool>(
     context: context,
-    builder: (_) => AlertDialog(
+    builder: (dialogContext) => AlertDialog(
       title: const Text('重置？'),
       content: const Text('删除所有加密数据，不可撤销。'),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(_, false),
+          onPressed: () => Navigator.pop(dialogContext, false),
           child: const Text('取消'),
         ),
         FilledButton(
-          onPressed: () => Navigator.pop(_, true),
+          onPressed: () => Navigator.pop(dialogContext, true),
           style:
               FilledButton.styleFrom(backgroundColor: context.colors.brandRed),
           child: const Text('重置'),

@@ -222,7 +222,8 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
             decoration: BoxDecoration(
               color: context.colors.backgroundSecondary,
               borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(AppRadius.xl)),
+                top: Radius.circular(AppRadius.xl),
+              ),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -267,20 +268,21 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
                           ErrorList(
                             errors: task.errors,
                             onReport: () async {
+                              final messenger = ScaffoldMessenger.of(context);
+                              final brandGreen = context.colors.brandGreen;
                               try {
                                 await manager.reportErrors(task.errors);
                                 if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  messenger.showSnackBar(
                                     SnackBar(
                                       content: const Text('错误报告已上传'),
-                                      backgroundColor:
-                                          context.colors.brandGreen,
+                                      backgroundColor: brandGreen,
                                     ),
                                   );
                                 }
                               } catch (e) {
                                 if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  messenger.showSnackBar(
                                     SnackBar(content: Text('上传失败: $e')),
                                   );
                                 }
