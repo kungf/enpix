@@ -33,35 +33,49 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
       children: [
         FutureBuilder<PackageInfo>(
           future: PackageInfo.fromPlatform(),
-          builder: (context, snap) => _infoTile('版本', snap.data?.version ?? '-',
-              Icons.info_outline_rounded, context.colors.brandBlue),
+          builder: (context, snap) => _infoTile(
+            '版本',
+            snap.data?.version ?? '-',
+            Icons.info_outline_rounded,
+            context.colors.brandBlue,
+          ),
         ),
         FutureBuilder<String?>(
           future: _cachedFingerprint,
           builder: (_, s) => _infoTile(
-              'KEK 指纹',
-              s.data?.substring(0, 12) ?? '—',
-              Icons.fingerprint_rounded,
-              context.colors.brandGray),
+            'KEK 指纹',
+            s.data?.substring(0, 12) ?? '—',
+            Icons.fingerprint_rounded,
+            context.colors.brandGray,
+          ),
         ),
         const Divider(indent: 52),
         InkWell(
           onTap: () => setState(() => _showTechInfo = !_showTechInfo),
           child: Padding(
             padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
-            child: Row(children: [
-              Icon(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.sm,
+            ),
+            child: Row(
+              children: [
+                Icon(
                   _showTechInfo
                       ? Icons.expand_less_rounded
                       : Icons.expand_more_rounded,
                   size: 20,
-                  color: context.colors.labelSecondary),
-              const SizedBox(width: AppSpacing.sm),
-              Text('技术信息',
+                  color: context.colors.labelSecondary,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  '技术信息',
                   style: TextStyle(
-                      fontSize: 15, color: context.colors.labelSecondary)),
-            ]),
+                    fontSize: 15,
+                    color: context.colors.labelSecondary,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         if (_showTechInfo) ...[
@@ -83,19 +97,34 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
 
   Widget _infoRow(String label, String value) => Padding(
         padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.sm),
-        child: Row(children: [
-          SizedBox(
+          AppSpacing.lg,
+          AppSpacing.sm,
+          AppSpacing.lg,
+          AppSpacing.sm,
+        ),
+        child: Row(
+          children: [
+            SizedBox(
               width: 80,
-              child: Text(label,
-                  style: TextStyle(
-                      fontSize: 15, color: context.colors.labelSecondary))),
-          Expanded(
-              child: Text(value,
-                  style: TextStyle(
-                      fontSize: 15,
-                      color: context.colors.labelPrimary,
-                      fontFamily: 'monospace'))),
-        ]),
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: context.colors.labelSecondary,
+                ),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                value,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: context.colors.labelPrimary,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
+          ],
+        ),
       );
 }

@@ -74,7 +74,8 @@ class UploadService {
           interpolation: img.Interpolation.cubic,
         );
         thumbJpeg = Uint8List.fromList(
-            img.encodeJpg(thumb, quality: AppConstants.thumbnailQuality));
+          img.encodeJpg(thumb, quality: AppConstants.thumbnailQuality),
+        );
         _log.fine('Thumbnail generated: ${thumbJpeg.length} bytes');
       }
     } catch (e) {
@@ -99,14 +100,17 @@ class UploadService {
     // 8. Upload original to S3
     try {
       _log.info('PUT to S3: $key (${encrypted.length} bytes)');
-      await _s3.putObject(key, encrypted,
-          metadata: {
-            'dek': CryptoService.b64Encode(wrappedDek),
-            'nonce': CryptoService.b64Encode(nonce),
-            'hash': hashHex,
-            'filename': fileName,
-          },
-          contentType: mimeType);
+      await _s3.putObject(
+        key,
+        encrypted,
+        metadata: {
+          'dek': CryptoService.b64Encode(wrappedDek),
+          'nonce': CryptoService.b64Encode(nonce),
+          'hash': hashHex,
+          'filename': fileName,
+        },
+        contentType: mimeType,
+      );
     } catch (e) {
       _log.severe('S3 upload failed: $e');
       return UploadResult.error('Upload failed: $e');
@@ -126,13 +130,17 @@ class UploadService {
         _crypto.secureFree(thumbDek);
 
         _log.info(
-            'PUT thumb to S3: $thumbKey (${encryptedThumb.length} bytes)');
-        await _s3.putObject(thumbKey, encryptedThumb,
-            metadata: {
-              'dek': CryptoService.b64Encode(wrappedThumbDek),
-              'nonce': CryptoService.b64Encode(thumbNonce),
-            },
-            contentType: 'image/jpeg');
+          'PUT thumb to S3: $thumbKey (${encryptedThumb.length} bytes)',
+        );
+        await _s3.putObject(
+          thumbKey,
+          encryptedThumb,
+          metadata: {
+            'dek': CryptoService.b64Encode(wrappedThumbDek),
+            'nonce': CryptoService.b64Encode(thumbNonce),
+          },
+          contentType: 'image/jpeg',
+        );
       } catch (e) {
         // Thumbnail upload failure is non-fatal
         _log.warning('Thumbnail upload failed (non-fatal): $e');
@@ -141,8 +149,12 @@ class UploadService {
     }
 
     _log.info('Upload complete: $key');
-    return UploadResult.success(key, hashHex, encrypted.length,
-        thumbData: thumbJpeg);
+    return UploadResult.success(
+      key,
+      hashHex,
+      encrypted.length,
+      thumbData: thumbJpeg,
+    );
   }
 
   static bool _neverCancelled() => false;
@@ -167,17 +179,26 @@ class UploadResult {
     this.remoteExists = false,
   });
 
-  factory UploadResult.success(String key, String hash, int size,
-          {Uint8List? thumbData}) =>
+  factory UploadResult.success(
+    String key,
+    String hash,
+    int size, {
+    Uint8List? thumbData,
+  }) =>
       UploadResult._(
-          success: true,
-          s3Key: key,
-          fileHash: hash,
-          size: size,
-          thumbData: thumbData);
+        success: true,
+        s3Key: key,
+        fileHash: hash,
+        size: size,
+        thumbData: thumbData,
+      );
 
   factory UploadResult.remoteExists(String key, String hash) => UploadResult._(
-      success: true, s3Key: key, fileHash: hash, remoteExists: true);
+        success: true,
+        s3Key: key,
+        fileHash: hash,
+        remoteExists: true,
+      );
 
   factory UploadResult.error(String msg) =>
       UploadResult._(success: false, error: msg);

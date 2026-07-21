@@ -90,8 +90,11 @@ class _StorageCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.cloud_rounded,
-                  size: 18, color: context.colors.brandBlue),
+              Icon(
+                Icons.cloud_rounded,
+                size: 18,
+                color: context.colors.brandBlue,
+              ),
               const SizedBox(width: AppSpacing.sm),
               Text(
                 '存储用量',
@@ -234,8 +237,11 @@ class _BackupActivityCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.bar_chart_rounded,
-                  size: 18, color: context.colors.brandGreen),
+              Icon(
+                Icons.bar_chart_rounded,
+                size: 18,
+                color: context.colors.brandGreen,
+              ),
               const SizedBox(width: AppSpacing.sm),
               Text(
                 '备份活动',
@@ -372,17 +378,17 @@ class _BarChart extends StatelessWidget {
                     reservedSize: 20,
                   ),
                 ),
-                leftTitles: AxisTitles(
+                leftTitles: const AxisTitles(
                   sideTitles: SideTitles(showTitles: false),
                 ),
-                topTitles: AxisTitles(
+                topTitles: const AxisTitles(
                   sideTitles: SideTitles(showTitles: false),
                 ),
-                rightTitles: AxisTitles(
+                rightTitles: const AxisTitles(
                   sideTitles: SideTitles(showTitles: false),
                 ),
               ),
-              gridData: FlGridData(show: false),
+              gridData: const FlGridData(show: false),
               borderData: FlBorderData(show: false),
               barGroups: List.generate(bars.length, (i) {
                 return BarChartGroupData(
@@ -424,8 +430,11 @@ class _DeviceStatusCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.devices_rounded,
-                  size: 18, color: context.colors.brandPurple),
+              Icon(
+                Icons.devices_rounded,
+                size: 18,
+                color: context.colors.brandPurple,
+              ),
               const SizedBox(width: AppSpacing.sm),
               Text(
                 '设备',
@@ -581,8 +590,11 @@ class _SystemStatusCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.info_rounded,
-                  size: 18, color: context.colors.brandGray),
+              Icon(
+                Icons.info_rounded,
+                size: 18,
+                color: context.colors.brandGray,
+              ),
               const SizedBox(width: AppSpacing.sm),
               Text(
                 '系统状态',

@@ -46,15 +46,21 @@ class CryptoService {
   /// Probe the device to find the strongest Argon2id params it can handle.
   /// Returns (memory, ops) that complete within ~2 seconds.
   Future<({int memory, int ops})> probeArgon2Params(
-      String passphrase, Uint8List salt) async {
+    String passphrase,
+    Uint8List salt,
+  ) async {
     var memory = CryptoConstants.argon2MemoryStart;
     var ops = CryptoConstants.argon2OpsStart;
 
     while (memory >= CryptoConstants.argon2MemoryFloor) {
       final sw = Stopwatch()..start();
       try {
-        await deriveKekWithParams(passphrase, salt,
-            memory: memory, iterations: ops);
+        await deriveKekWithParams(
+          passphrase,
+          salt,
+          memory: memory,
+          iterations: ops,
+        );
         sw.stop();
         if (sw.elapsedMilliseconds < _argon2ProbeTimeoutMs) {
           return (memory: memory, ops: ops);
@@ -98,13 +104,18 @@ class CryptoService {
     final macStart = wrapped.length - 16;
     final ct = wrapped.sublist(CryptoConstants.keyWrapNonceLength, macStart);
     final mac = Mac(wrapped.sublist(macStart));
-    final clear = await _aead.decrypt(SecretBox(ct, nonce: nonce, mac: mac),
-        secretKey: SecretKey(kek));
+    final clear = await _aead.decrypt(
+      SecretBox(ct, nonce: nonce, mac: mac),
+      secretKey: SecretKey(kek),
+    );
     return Uint8List.fromList(clear);
   }
 
   Future<Uint8List> encrypt(
-      Uint8List plain, Uint8List dek, Uint8List nonce) async {
+    Uint8List plain,
+    Uint8List dek,
+    Uint8List nonce,
+  ) async {
     final box =
         await _aead.encrypt(plain, secretKey: SecretKey(dek), nonce: nonce);
     return _concat(nonce, box.cipherText, box.mac.bytes);
@@ -115,8 +126,10 @@ class CryptoService {
     final macStart = data.length - 16;
     final ct = data.sublist(CryptoConstants.xchacha20NonceLength, macStart);
     final mac = Mac(data.sublist(macStart));
-    final clear = await _aead.decrypt(SecretBox(ct, nonce: nonce, mac: mac),
-        secretKey: SecretKey(dek));
+    final clear = await _aead.decrypt(
+      SecretBox(ct, nonce: nonce, mac: mac),
+      secretKey: SecretKey(dek),
+    );
     return Uint8List.fromList(clear);
   }
 

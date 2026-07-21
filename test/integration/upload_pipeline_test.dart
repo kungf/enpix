@@ -3,6 +3,7 @@
 ///   S3_ENDPOINT=http://localhost:9000 S3_BUCKET=test \
 ///     S3_ACCESS_KEY=minioadmin S3_SECRET_KEY=minioadmin \
 ///     dart run test/integration/upload_pipeline_test.dart
+library;
 
 import 'dart:convert';
 import 'dart:io';
@@ -22,7 +23,9 @@ final _region = Platform.environment['S3_REGION'] ?? 'us-east-1';
 String p2(int n) => n.toString().padLeft(2, '0');
 Uint8List rnd(int n) {
   final r = Uint8List(n);
-  for (int i = 0; i < n; i++) r[i] = (DateTime.now().microsecond + i) % 256;
+  for (int i = 0; i < n; i++) {
+    r[i] = (DateTime.now().microsecond + i) % 256;
+  }
   return r;
 }
 
@@ -38,7 +41,7 @@ String sign(String method, String path, Map<String, String> hdrs, String ph) {
     'Host': '$host$port',
     'x-amz-content-sha256': ph,
     'x-amz-date': amz,
-    ...hdrs
+    ...hdrs,
   };
   final sorted = h.keys.toList()..sort();
   final canon =
@@ -53,14 +56,14 @@ String sign(String method, String path, Map<String, String> hdrs, String ph) {
     '',
     '$canon\n',
     signed,
-    ph
+    ph,
   ].join('\n');
   final scope = '$date/$_region/s3/aws4_request';
   final sts = [
     'AWS4-HMAC-SHA256',
     amz,
     scope,
-    sha256.convert(utf8.encode(cr)).toString()
+    sha256.convert(utf8.encode(cr)).toString(),
   ].join('\n');
   final kDate =
       Hmac(sha256, utf8.encode('AWS4$_sk')).convert(utf8.encode(date)).bytes;
@@ -70,8 +73,12 @@ String sign(String method, String path, Map<String, String> hdrs, String ph) {
   return 'AWS4-HMAC-SHA256 Credential=$_ak/$scope, SignedHeaders=$signed, Signature=${Hmac(sha256, signKey).convert(utf8.encode(sts)).toString()}';
 }
 
-Map<String, String> auth(String method, String path,
-    {Map<String, String>? extra, String? ph}) {
+Map<String, String> auth(
+  String method,
+  String path, {
+  Map<String, String>? extra,
+  String? ph,
+}) {
   final now = DateTime.now().toUtc();
   final amz =
       '${now.year}${p2(now.month)}${p2(now.day)}T${p2(now.hour)}${p2(now.minute)}${p2(now.second)}Z';
@@ -82,7 +89,7 @@ Map<String, String> auth(String method, String path,
     'Host': '$host$port',
     'x-amz-content-sha256': ph ?? 'UNSIGNED-PAYLOAD',
     'x-amz-date': amz,
-    if (extra != null) ...extra
+    if (extra != null) ...extra,
   };
   h['Authorization'] = sign(method, path, h, ph ?? 'UNSIGNED-PAYLOAD');
   return h;
@@ -109,7 +116,9 @@ void main() async {
 
   Future<Uint8List> deriveKek(String pw, Uint8List s) async {
     final k = await argon2id.deriveKey(
-        secretKey: SecretKey(utf8.encode(pw)), nonce: s);
+      secretKey: SecretKey(utf8.encode(pw)),
+      nonce: s,
+    );
     return Uint8List.fromList(await k.extractBytes());
   }
 
@@ -126,43 +135,63 @@ void main() async {
     final n = d.sublist(0, 24);
     final c = d.sublist(24, d.length - 16);
     final m = Mac(d.sublist(d.length - 16));
-    return Uint8List.fromList(await aead.decrypt(SecretBox(c, nonce: n, mac: m),
-        secretKey: SecretKey(k)));
+    return Uint8List.fromList(
+      await aead.decrypt(
+        SecretBox(c, nonce: n, mac: m),
+        secretKey: SecretKey(k),
+      ),
+    );
   }
 
-  final dio = Dio(BaseOptions(
+  final dio = Dio(
+    BaseOptions(
       baseUrl: _endpoint,
       connectTimeout: const Duration(seconds: 10),
-      validateStatus: (_) => true));
+      validateStatus: (_) => true,
+    ),
+  );
 
-  Future<void> s3Put(String key, Uint8List data,
-      {Map<String, String>? meta}) async {
+  Future<void> s3Put(
+    String key,
+    Uint8List data, {
+    Map<String, String>? meta,
+  }) async {
     final ph = sha256.convert(data).toString();
     final extra = <String, String>{
       'Content-Type': 'application/octet-stream',
-      'Content-Length': data.length.toString()
+      'Content-Length': data.length.toString(),
     };
     if (meta != null)
-      for (final e in meta.entries) extra['x-amz-meta-${e.key}'] = e.value;
-    final r = await dio.put('/$_bucket/$key',
-        data: Stream.value(data),
-        options: Options(
-            headers: auth('PUT', '/$_bucket/$key', extra: extra, ph: ph)));
+      for (final e in meta.entries) {
+        extra['x-amz-meta-${e.key}'] = e.value;
+      }
+    final r = await dio.put(
+      '/$_bucket/$key',
+      data: Stream.value(data),
+      options: Options(
+        headers: auth('PUT', '/$_bucket/$key', extra: extra, ph: ph),
+      ),
+    );
     if (r.statusCode != 200) throw Exception('PUT ${r.statusCode}');
   }
 
   Future<Uint8List> s3Get(String key) async {
-    final r = await dio.get('/$_bucket/$key',
-        options: Options(
-            headers: auth('GET', '/$_bucket/$key'),
-            responseType: ResponseType.bytes));
+    final r = await dio.get(
+      '/$_bucket/$key',
+      options: Options(
+        headers: auth('GET', '/$_bucket/$key'),
+        responseType: ResponseType.bytes,
+      ),
+    );
     if (r.statusCode != 200) throw Exception('GET ${r.statusCode}');
     return Uint8List.fromList(List<int>.from(r.data));
   }
 
   Future<Map<String, String>> s3Head(String key) async {
-    final r = await dio.head('/$_bucket/$key',
-        options: Options(headers: auth('HEAD', '/$_bucket/$key')));
+    final r = await dio.head(
+      '/$_bucket/$key',
+      options: Options(headers: auth('HEAD', '/$_bucket/$key')),
+    );
     if (r.statusCode != 200) throw Exception('HEAD ${r.statusCode}');
     final m = <String, String>{};
     r.headers.forEach((n, v) {
@@ -173,10 +202,13 @@ void main() async {
 
   // ── Setup ──
   final salt = Uint8List(16);
-  for (int i = 0; i < 16; i++) salt[i] = i + 1;
+  for (int i = 0; i < 16; i++) {
+    salt[i] = i + 1;
+  }
   final kek = await deriveKek('pipeline-test-pass', salt);
   final plaintext = Uint8List.fromList(
-      utf8.encode('Enpix Pipeline: ${DateTime.now().toIso8601String()}'));
+    utf8.encode('Enpix Pipeline: ${DateTime.now().toIso8601String()}'),
+  );
 
   // T1: Crypto roundtrip
   print('T1: Crypto Roundtrip');
@@ -184,16 +216,18 @@ void main() async {
     final dek = rnd(32);
     final e = await enc(plaintext, dek, rnd(24));
     final d = await dec(e, dek);
-    if (utf8.decode(d) == utf8.decode(plaintext))
+    if (utf8.decode(d) == utf8.decode(plaintext)) {
       ok('Encrypt/decrypt OK');
-    else
+    } else {
       fail('Mismatch');
+    }
     final w = await enc(dek, kek, rnd(24));
     final u = await dec(w, kek);
-    if (u.length == dek.length)
+    if (u.length == dek.length) {
       ok('Key wrap/unwrap OK');
-    else
+    } else {
       fail('Key mismatch');
+    }
   } catch (e) {
     fail('Crypto: $e');
   }
@@ -211,8 +245,11 @@ void main() async {
 
   try {
     final sw = Stopwatch()..start();
-    await s3Put(s3Key, encrypted,
-        meta: {'dek': base64Url.encode(wrappedDek), 'hash': origHashB64});
+    await s3Put(
+      s3Key,
+      encrypted,
+      meta: {'dek': base64Url.encode(wrappedDek), 'hash': origHashB64},
+    );
     ok('Upload: ${sw.elapsedMilliseconds}ms, ${encrypted.length}B');
   } catch (e) {
     fail('Upload: $e');
@@ -227,14 +264,16 @@ void main() async {
     final rDek = await dec(wDek, kek);
     final recovered = await dec(dl, rDek);
     final rHash = await blake2b.hash(recovered);
-    if (base64Url.encode(rHash.bytes) == origHashB64)
+    if (base64Url.encode(rHash.bytes) == origHashB64) {
       ok('Integrity VERIFIED');
-    else
+    } else {
       fail('Integrity FAILED');
-    if (utf8.decode(recovered) == utf8.decode(plaintext))
+    }
+    if (utf8.decode(recovered) == utf8.decode(plaintext)) {
       ok('Content byte-perfect');
-    else
+    } else {
       fail('Content mismatch');
+    }
   } catch (e) {
     fail('Download/decrypt: $e');
   }
@@ -243,10 +282,11 @@ void main() async {
   print('\nT4: Hash Verification');
   try {
     final meta = await s3Head(s3Key);
-    if (meta['x-amz-meta-hash'] == origHashB64)
+    if (meta['x-amz-meta-hash'] == origHashB64) {
       ok('Stored hash matches');
-    else
+    } else {
       fail('Hash mismatch');
+    }
   } catch (e) {
     fail('Hash check: $e');
   }
@@ -254,8 +294,10 @@ void main() async {
   // T5: Cleanup
   print('\nT5: Cleanup');
   try {
-    await dio.delete('/$_bucket/$s3Key',
-        options: Options(headers: auth('DELETE', '/$_bucket/$s3Key')));
+    await dio.delete(
+      '/$_bucket/$s3Key',
+      options: Options(headers: auth('DELETE', '/$_bucket/$s3Key')),
+    );
     ok('Cleaned up');
   } catch (e) {
     fail('Cleanup: $e');
@@ -287,7 +329,9 @@ void main() async {
       ..reset()
       ..start();
     await argon2id.deriveKey(
-        secretKey: SecretKey(utf8.encode('bench')), nonce: Uint8List(16));
+      secretKey: SecretKey(utf8.encode('bench')),
+      nonce: Uint8List(16),
+    );
     ok('Argon2id(64MiB): ${sw.elapsedMilliseconds}ms');
   } catch (e) {
     fail('Perf: $e');

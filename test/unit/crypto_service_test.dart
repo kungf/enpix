@@ -13,7 +13,7 @@ void main() {
   group('Key Derivation (Argon2id)', () {
     test('derives same KEK from same passphrase and salt', () async {
       final salt = crypto.generateSalt();
-      final passphrase = 'test-password-123';
+      const passphrase = 'test-password-123';
 
       final kek1 = await crypto.deriveKek(passphrase, salt);
       final kek2 = await crypto.deriveKek(passphrase, salt);
@@ -31,7 +31,7 @@ void main() {
     });
 
     test('different salts produce different KEKs', () async {
-      final passphrase = 'same-password';
+      const passphrase = 'same-password';
       final salt1 = crypto.generateSalt();
       final salt2 = crypto.generateSalt();
 

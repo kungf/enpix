@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
@@ -14,14 +13,17 @@ class S3Service {
   final Dio _dio;
 
   S3Service()
-      : _dio = Dio(BaseOptions(
-          connectTimeout: const Duration(seconds: 30),
-          receiveTimeout: const Duration(seconds: 300),
-        )) {
+      : _dio = Dio(
+          BaseOptions(
+            connectTimeout: const Duration(seconds: 30),
+            receiveTimeout: const Duration(seconds: 300),
+          ),
+        ) {
     // Reuse TCP connections — avoids handshake per request during bulk upload.
-    (_dio.httpClientAdapter as DefaultHttpClientAdapter).onHttpClientCreate =
+    (_dio.httpClientAdapter as IOHttpClientAdapter).onHttpClientCreate =
         (client) {
       client.idleTimeout = const Duration(seconds: 30);
+      return null;
     };
     // autoUncompress must be true (the default) so that S3/MinIO gzip-compressed
     // XML responses (LIST results > threshold) are auto-decompressed by the
@@ -31,8 +33,11 @@ class S3Service {
   String? _kekFingerprint;
   String? _deviceId;
 
-  void configure(StorageConfig config,
-      {String? kekFingerprint, String? deviceId}) {
+  void configure(
+    StorageConfig config, {
+    String? kekFingerprint,
+    String? deviceId,
+  }) {
     _log.info('Configuring S3: ${config.endpointUrl} / ${config.bucketName}');
     _config = config;
     _kekFingerprint = kekFingerprint;
@@ -50,8 +55,11 @@ class S3Service {
   // ── Path helpers ──
 
   static String generateKey(
-      String fingerprint, String fileId, DateTime createdAt,
-      {String? deviceId}) {
+    String fingerprint,
+    String fileId,
+    DateTime createdAt, {
+    String? deviceId,
+  }) {
     final prefix =
         fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared';
     final date =
@@ -61,30 +69,44 @@ class S3Service {
   }
 
   String makeKey(String fileId, DateTime createdAt) {
-    return generateKey(_kekFingerprint ?? 'shared', fileId, createdAt,
-        deviceId: _deviceId);
+    return generateKey(
+      _kekFingerprint ?? 'shared',
+      fileId,
+      createdAt,
+      deviceId: _deviceId,
+    );
   }
 
   /// Generate S3 key for a thumbnail.
   static String generateThumbKey(
-      String fingerprint, String fileId, DateTime createdAt,
-      {String? deviceId}) {
+    String fingerprint,
+    String fileId,
+    DateTime createdAt, {
+    String? deviceId,
+  }) {
     final prefix =
         fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared';
     final date =
         '${createdAt.year}${createdAt.month.toString().padLeft(2, '0')}${createdAt.day.toString().padLeft(2, '0')}';
     final device = deviceId ?? 'default';
-    return '$prefix/$device/thumbs/$date/$fileId\_thumb.enc';
+    return '$prefix/$device/thumbs/$date/${fileId}_thumb.enc';
   }
 
   String makeThumbKey(String fileId, DateTime createdAt) {
-    return generateThumbKey(_kekFingerprint ?? 'shared', fileId, createdAt,
-        deviceId: _deviceId);
+    return generateThumbKey(
+      _kekFingerprint ?? 'shared',
+      fileId,
+      createdAt,
+      deviceId: _deviceId,
+    );
   }
 
   /// Generate S3 key for debug/diagnostic files.
-  static String generateDebugKey(String fingerprint, String fileName,
-      {String? deviceId}) {
+  static String generateDebugKey(
+    String fingerprint,
+    String fileName, {
+    String? deviceId,
+  }) {
     final prefix =
         fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared';
     final device = deviceId ?? 'default';
@@ -92,8 +114,11 @@ class S3Service {
   }
 
   String makeDebugKey(String fileName) {
-    return generateDebugKey(_kekFingerprint ?? 'shared', fileName,
-        deviceId: _deviceId);
+    return generateDebugKey(
+      _kekFingerprint ?? 'shared',
+      fileName,
+      deviceId: _deviceId,
+    );
   }
 
   // ── HTTP operations ──
@@ -125,15 +150,20 @@ class S3Service {
     try {
       final sha = sha256.convert(testData).toString();
       final objPath = '/$bucket/$testKey';
-      await _dio.put(objPath,
-          data: Stream.value(testData),
-          options: _signedOptions('PUT', objPath,
-              headers: {
-                'Content-Type': 'application/octet-stream',
-                'Content-Length': testData.length.toString(),
-                'x-amz-content-sha256': sha,
-              },
-              payloadHash: sha));
+      await _dio.put(
+        objPath,
+        data: Stream.value(testData),
+        options: _signedOptions(
+          'PUT',
+          objPath,
+          headers: {
+            'Content-Type': 'application/octet-stream',
+            'Content-Length': testData.length.toString(),
+            'x-amz-content-sha256': sha,
+          },
+          payloadHash: sha,
+        ),
+      );
     } on Exception catch (e) {
       throw StorageException(message: '无写入权限: $e', cause: e);
     }
@@ -163,8 +193,12 @@ class S3Service {
     return '连接成功，权限正常';
   }
 
-  Future<void> putObject(String key, Uint8List data,
-      {Map<String, String>? metadata, String? contentType}) async {
+  Future<void> putObject(
+    String key,
+    Uint8List data, {
+    Map<String, String>? metadata,
+    String? contentType,
+  }) async {
     _ensureConfigured();
     _log.info('PUT $key (${data.length} bytes)');
     try {
@@ -180,10 +214,16 @@ class S3Service {
           extraHeaders['x-amz-meta-${e.key}'] = e.value;
         }
       }
-      await _dio.put('/${_config!.bucketName}/$key',
-          data: Stream.value(body),
-          options: _signedOptions('PUT', '/${_config!.bucketName}/$key',
-              headers: extraHeaders, payloadHash: sha));
+      await _dio.put(
+        '/${_config!.bucketName}/$key',
+        data: Stream.value(body),
+        options: _signedOptions(
+          'PUT',
+          '/${_config!.bucketName}/$key',
+          headers: extraHeaders,
+          payloadHash: sha,
+        ),
+      );
     } catch (e) {
       throw StorageException(message: 'PUT failed: $key — $e', cause: e);
     }
@@ -258,10 +298,13 @@ class S3Service {
     final key = '$fpPrefix/devices/$deviceId.json';
     final json = jsonEncode({
       'name': deviceName,
-      'registeredAt': DateTime.now().toUtc().toIso8601String()
+      'registeredAt': DateTime.now().toUtc().toIso8601String(),
     });
-    await putObject(key, Uint8List.fromList(utf8.encode(json)),
-        contentType: 'application/json');
+    await putObject(
+      key,
+      Uint8List.fromList(utf8.encode(json)),
+      contentType: 'application/json',
+    );
     _log.info('Registered device: $deviceId ($deviceName)');
   }
 
@@ -338,12 +381,15 @@ class S3Service {
         }
       } on DioException catch (e) {
         throw StorageException(
-            message:
-                'LIST failed: prefix=$prefix — HTTP ${e.response?.statusCode}: ${e.response?.data}',
-            cause: e);
+          message:
+              'LIST failed: prefix=$prefix — HTTP ${e.response?.statusCode}: ${e.response?.data}',
+          cause: e,
+        );
       } on Exception catch (e) {
         throw StorageException(
-            message: 'LIST failed: prefix=$prefix — $e', cause: e);
+          message: 'LIST failed: prefix=$prefix — $e',
+          cause: e,
+        );
       }
     } while (continuationToken != null);
 
@@ -353,8 +399,12 @@ class S3Service {
 
   // ── AWS Signature V4 ──
 
-  Options _signedOptions(String method, String path,
-      {Map<String, String>? headers, String? payloadHash}) {
+  Options _signedOptions(
+    String method,
+    String path, {
+    Map<String, String>? headers,
+    String? payloadHash,
+  }) {
     final cfg = _config!;
     final host = Uri.parse(cfg.endpointUrl).host;
     final port = Uri.parse(cfg.endpointUrl).hasPort
@@ -364,7 +414,7 @@ class S3Service {
     final amzDate = _fmt(now);
     final dateStamp =
         '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
-    final service = 's3';
+    const service = 's3';
     final region = cfg.region.isNotEmpty ? cfg.region : 'default';
     final contentSha256 = payloadHash ?? 'UNSIGNED-PAYLOAD';
 
@@ -409,7 +459,7 @@ class S3Service {
     ].join('\n');
 
     // String to sign
-    final algorithm = 'AWS4-HMAC-SHA256';
+    const algorithm = 'AWS4-HMAC-SHA256';
     final credentialScope = '$dateStamp/$region/$service/aws4_request';
     final stringToSign = [
       algorithm,
@@ -435,11 +485,14 @@ class S3Service {
     final authHeader =
         '$algorithm Credential=${cfg.accessKey}/$credentialScope, SignedHeaders=$signedHeadersStr, Signature=$signature';
 
-    return Options(method: method, headers: {
-      ...signedHdrs,
-      'Authorization': authHeader,
-      'Content-Type': headers?['Content-Type'] ?? 'application/octet-stream',
-    });
+    return Options(
+      method: method,
+      headers: {
+        ...signedHdrs,
+        'Authorization': authHeader,
+        'Content-Type': headers?['Content-Type'] ?? 'application/octet-stream',
+      },
+    );
   }
 
   String _uriEncodePath(String path) {
@@ -455,7 +508,7 @@ class S3Service {
   }
 
   void _ensureConfigured() {
-    if (_config == null) throw StorageNotConfiguredException();
+    if (_config == null) throw const StorageNotConfiguredException();
   }
 }
 
@@ -465,8 +518,11 @@ class S3Object {
   final int size;
   final String lastModified;
 
-  const S3Object(
-      {required this.key, required this.size, required this.lastModified});
+  const S3Object({
+    required this.key,
+    required this.size,
+    required this.lastModified,
+  });
 }
 
 /// A registered device in the S3 device registry.

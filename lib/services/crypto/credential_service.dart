@@ -102,7 +102,8 @@ class CredentialService {
     // Probe adaptive Argon2id params
     final params = await _crypto.probeArgon2Params(passphrase, salt);
     _log.info(
-        'Adaptive Argon2id: memory=${params.memory} KiB, ops=${params.ops}');
+      'Adaptive Argon2id: memory=${params.memory} KiB, ops=${params.ops}',
+    );
 
     // Derive KEK with probed params
     final kek = await _crypto.deriveKekWithParams(
@@ -123,18 +124,25 @@ class CredentialService {
 
     // Store to Keychain
     await _storage.write(
-        key: _kekSaltKey, value: CryptoService.b64Encode(salt));
+      key: _kekSaltKey,
+      value: CryptoService.b64Encode(salt),
+    );
     await _storage.write(key: _kekKey, value: CryptoService.b64Encode(kek));
     await _storage.write(key: _kekFingerprintKey, value: fingerprint);
     await _storage.write(key: _hasPassphraseKey, value: 'true');
     await _storage.write(
-        key: _wrappedMasterKeyKey, value: CryptoService.b64Encode(wrappedMk));
+      key: _wrappedMasterKeyKey,
+      value: CryptoService.b64Encode(wrappedMk),
+    );
     await _storage.write(
-        key: _argon2MemoryKey, value: params.memory.toString());
+      key: _argon2MemoryKey,
+      value: params.memory.toString(),
+    );
     await _storage.write(key: _argon2OpsKey, value: params.ops.toString());
 
     _log.info(
-        'Passphrase setup complete (adaptive params, Master Key generated)');
+      'Passphrase setup complete (adaptive params, Master Key generated)',
+    );
     return kek;
   }
 
@@ -173,7 +181,7 @@ class CredentialService {
     final computed = await _crypto.computeFingerprint(kek);
     if (computed != fingerprint) {
       _crypto.secureFree(kek);
-      throw WrongPassphraseException();
+      throw const WrongPassphraseException();
     }
 
     // Unwrap Master Key
@@ -241,7 +249,9 @@ class CredentialService {
   /// Change the passphrase: re-derive KEK with new password, re-wrap the
   /// existing Master Key. Master Key itself never changes.
   Future<void> changePassphrase(
-      String oldPassphrase, String newPassphrase) async {
+    String oldPassphrase,
+    String newPassphrase,
+  ) async {
     _log.info('Changing passphrase...');
 
     // Read existing S3 credentials before ending the old session.
@@ -279,15 +289,21 @@ class CredentialService {
 
     // Store updated Keychain entries.
     await _storage.write(
-        key: _kekSaltKey, value: CryptoService.b64Encode(salt));
+      key: _kekSaltKey,
+      value: CryptoService.b64Encode(salt),
+    );
     await _storage.write(key: _kekKey, value: CryptoService.b64Encode(newKek));
     await _storage.write(key: _kekFingerprintKey, value: fingerprint);
     await _storage.write(
-        key: _argon2MemoryKey, value: params.memory.toString());
+      key: _argon2MemoryKey,
+      value: params.memory.toString(),
+    );
     await _storage.write(key: _argon2OpsKey, value: params.ops.toString());
     if (wrappedMk != null) {
       await _storage.write(
-          key: _wrappedMasterKeyKey, value: CryptoService.b64Encode(wrappedMk));
+        key: _wrappedMasterKeyKey,
+        value: CryptoService.b64Encode(wrappedMk),
+      );
     }
 
     // Re-save S3 credentials.

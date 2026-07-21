@@ -3,12 +3,12 @@
 ///   S3_ENDPOINT=http://localhost:9000 S3_BUCKET=test \
 ///     S3_ACCESS_KEY=minioadmin S3_SECRET_KEY=minioadmin \
 ///     dart run test/integration/s3_client_test.dart
+library;
 
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
-import 'package:cryptography/cryptography.dart' hide Hmac;
 import 'package:dio/dio.dart';
 
 final _endpoint =
@@ -22,7 +22,8 @@ void main() async {
   if (_ak.isEmpty || _sk.isEmpty) {
     print('ERROR: Set S3_ACCESS_KEY and S3_SECRET_KEY environment variables.');
     print(
-        'Example: S3_ACCESS_KEY=minioadmin S3_SECRET_KEY=minioadmin dart run ...');
+      'Example: S3_ACCESS_KEY=minioadmin S3_SECRET_KEY=minioadmin dart run ...',
+    );
     exit(1);
   }
   int passed = 0, failed = 0;
@@ -57,7 +58,7 @@ void main() async {
       'Host': '$host$port',
       'x-amz-content-sha256': ph,
       'x-amz-date': amz,
-      ...hdrs
+      ...hdrs,
     };
     final sorted = h.keys.toList()..sort();
     final canon =
@@ -69,7 +70,7 @@ void main() async {
       'AWS4-HMAC-SHA256',
       amz,
       scope,
-      sha256.convert(utf8.encode(cr)).toString()
+      sha256.convert(utf8.encode(cr)).toString(),
     ].join('\n');
     final kDate =
         Hmac(sha256, utf8.encode('AWS4$_sk')).convert(utf8.encode(date)).bytes;
@@ -80,8 +81,12 @@ void main() async {
     return 'AWS4-HMAC-SHA256 Credential=$_ak/$scope, SignedHeaders=$signed, Signature=${Hmac(sha256, signKey).convert(utf8.encode(sts)).toString()}';
   }
 
-  Map<String, String> auth(String method, String path,
-      {Map<String, String>? extra, String? ph}) {
+  Map<String, String> auth(
+    String method,
+    String path, {
+    Map<String, String>? extra,
+    String? ph,
+  }) {
     final now = DateTime.now().toUtc();
     final amz =
         '${now.year}${p2(now.month)}${p2(now.day)}T${p2(now.hour)}${p2(now.minute)}${p2(now.second)}Z';
@@ -92,26 +97,32 @@ void main() async {
       'Host': '$host$port',
       'x-amz-content-sha256': ph ?? 'UNSIGNED-PAYLOAD',
       'x-amz-date': amz,
-      if (extra != null) ...extra
+      if (extra != null) ...extra,
     };
     h['Authorization'] = sign(method, path, h, ph ?? 'UNSIGNED-PAYLOAD');
     return h;
   }
 
-  final dio = Dio(BaseOptions(
+  final dio = Dio(
+    BaseOptions(
       baseUrl: _endpoint,
       connectTimeout: const Duration(seconds: 10),
-      validateStatus: (_) => true));
+      validateStatus: (_) => true,
+    ),
+  );
 
   // T1: Connectivity
   print('T1: Connectivity');
   try {
-    final r = await dio.head('/$_bucket',
-        options: Options(headers: auth('HEAD', '/$_bucket')));
-    if (r.statusCode == 200 || r.statusCode == 403)
+    final r = await dio.head(
+      '/$_bucket',
+      options: Options(headers: auth('HEAD', '/$_bucket')),
+    );
+    if (r.statusCode == 200 || r.statusCode == 403) {
       ok('Reachable (${r.statusCode})');
-    else
+    } else {
       fail('Status ${r.statusCode}');
+    }
   } catch (e) {
     fail('Unreachable: $e');
   }
@@ -127,17 +138,20 @@ void main() async {
     final extra = {
       'Content-Type': 'application/octet-stream',
       'Content-Length': testData.length.toString(),
-      'x-amz-content-sha256': dataHash
+      'x-amz-content-sha256': dataHash,
     };
-    final r = await dio.put('/$_bucket/$testKey',
-        data: Stream.value(testData),
-        options: Options(
-            headers:
-                auth('PUT', '/$_bucket/$testKey', extra: extra, ph: dataHash)));
-    if (r.statusCode == 200)
+    final r = await dio.put(
+      '/$_bucket/$testKey',
+      data: Stream.value(testData),
+      options: Options(
+        headers: auth('PUT', '/$_bucket/$testKey', extra: extra, ph: dataHash),
+      ),
+    );
+    if (r.statusCode == 200) {
       ok('PUT: ${sw.elapsedMilliseconds}ms');
-    else
+    } else {
       fail('PUT status ${r.statusCode}');
+    }
   } catch (e) {
     fail('PUT: $e');
   }
@@ -145,12 +159,15 @@ void main() async {
   // T3: HEAD object
   print('\nT3: HEAD object');
   try {
-    final r = await dio.head('/$_bucket/$testKey',
-        options: Options(headers: auth('HEAD', '/$_bucket/$testKey')));
-    if (r.statusCode == 200)
+    final r = await dio.head(
+      '/$_bucket/$testKey',
+      options: Options(headers: auth('HEAD', '/$_bucket/$testKey')),
+    );
+    if (r.statusCode == 200) {
       ok('HEAD OK (${r.headers.value('content-length')} bytes)');
-    else
+    } else {
       fail('HEAD status ${r.statusCode}');
+    }
   } catch (e) {
     fail('HEAD: $e');
   }
@@ -159,15 +176,19 @@ void main() async {
   print('\nT4: GET object');
   try {
     final sw = Stopwatch()..start();
-    final r = await dio.get('/$_bucket/$testKey',
-        options: Options(
-            headers: auth('GET', '/$_bucket/$testKey'),
-            responseType: ResponseType.bytes));
+    final r = await dio.get(
+      '/$_bucket/$testKey',
+      options: Options(
+        headers: auth('GET', '/$_bucket/$testKey'),
+        responseType: ResponseType.bytes,
+      ),
+    );
     final data = Uint8List.fromList(List<int>.from(r.data));
-    if (utf8.decode(data) == utf8.decode(testData))
+    if (utf8.decode(data) == utf8.decode(testData)) {
       ok('GET: ${sw.elapsedMilliseconds}ms, content verified');
-    else
+    } else {
       fail('GET content mismatch');
+    }
   } catch (e) {
     fail('GET: $e');
   }
@@ -175,17 +196,20 @@ void main() async {
   // T5: GET with Range
   print('\nT5: Range request');
   try {
-    final r = await dio.get('/$_bucket/$testKey',
-        options: Options(
-          headers:
-              auth('GET', '/$_bucket/$testKey', extra: {'Range': 'bytes=0-3'}),
-          responseType: ResponseType.bytes,
-        ));
+    final r = await dio.get(
+      '/$_bucket/$testKey',
+      options: Options(
+        headers:
+            auth('GET', '/$_bucket/$testKey', extra: {'Range': 'bytes=0-3'}),
+        responseType: ResponseType.bytes,
+      ),
+    );
     final data = Uint8List.fromList(List<int>.from(r.data));
-    if (data.length == 4)
+    if (data.length == 4) {
       ok('Range: 4 bytes OK');
-    else
+    } else {
       fail('Range: expected 4, got ${data.length}');
+    }
   } catch (e) {
     fail('Range: $e');
   }
@@ -201,20 +225,32 @@ void main() async {
       'x-amz-meta-version': '1',
       'x-amz-content-sha256': sha256.convert(Uint8List(10)).toString(),
     };
-    await dio.put('/$_bucket/$mk',
-        data: Stream.value(Uint8List(10)),
-        options: Options(
-            headers: auth('PUT', '/$_bucket/$mk',
-                extra: extra, ph: sha256.convert(Uint8List(10)).toString())));
-    final r = await dio.head('/$_bucket/$mk',
-        options: Options(headers: auth('HEAD', '/$_bucket/$mk')));
+    await dio.put(
+      '/$_bucket/$mk',
+      data: Stream.value(Uint8List(10)),
+      options: Options(
+        headers: auth(
+          'PUT',
+          '/$_bucket/$mk',
+          extra: extra,
+          ph: sha256.convert(Uint8List(10)).toString(),
+        ),
+      ),
+    );
+    final r = await dio.head(
+      '/$_bucket/$mk',
+      options: Options(headers: auth('HEAD', '/$_bucket/$mk')),
+    );
     final testVal = r.headers.value('x-amz-meta-testkey');
-    if (testVal == 'hello-world')
+    if (testVal == 'hello-world') {
       ok('Metadata preserved');
-    else
+    } else {
       fail('Metadata: got "$testVal"');
-    await dio.delete('/$_bucket/$mk',
-        options: Options(headers: auth('DELETE', '/$_bucket/$mk')));
+    }
+    await dio.delete(
+      '/$_bucket/$mk',
+      options: Options(headers: auth('DELETE', '/$_bucket/$mk')),
+    );
   } catch (e) {
     fail('Metadata: $e');
   }
@@ -222,26 +258,34 @@ void main() async {
   // T7: Delete
   print('\nT7: Delete');
   try {
-    await dio.delete('/$_bucket/$testKey',
-        options: Options(headers: auth('DELETE', '/$_bucket/$testKey')));
-    final r = await dio.head('/$_bucket/$testKey',
-        options: Options(headers: auth('HEAD', '/$_bucket/$testKey')));
-    if (r.statusCode == 404)
+    await dio.delete(
+      '/$_bucket/$testKey',
+      options: Options(headers: auth('DELETE', '/$_bucket/$testKey')),
+    );
+    final r = await dio.head(
+      '/$_bucket/$testKey',
+      options: Options(headers: auth('HEAD', '/$_bucket/$testKey')),
+    );
+    if (r.statusCode == 404) {
       ok('Deleted OK (404)');
-    else
+    } else {
       fail('Still exists (${r.statusCode})');
+    }
   } catch (e) {
     fail('Delete: $e');
   }
 
   // T8: Nonexistent key
   print('\nT8: Error handling');
-  final r404 = await dio.head('/$_bucket/nonexistent-xyz',
-      options: Options(headers: auth('HEAD', '/$_bucket/nonexistent-xyz')));
-  if (r404.statusCode == 404)
+  final r404 = await dio.head(
+    '/$_bucket/nonexistent-xyz',
+    options: Options(headers: auth('HEAD', '/$_bucket/nonexistent-xyz')),
+  );
+  if (r404.statusCode == 404) {
     ok('404 on missing key');
-  else
+  } else {
     fail('Expected 404, got ${r404.statusCode}');
+  }
 
   // T9: Large object (1MB)
   print('\nT9: Large object');
@@ -253,25 +297,32 @@ void main() async {
     final extra = {
       'Content-Type': 'application/octet-stream',
       'Content-Length': bigData.length.toString(),
-      'x-amz-content-sha256': bigHash
+      'x-amz-content-sha256': bigHash,
     };
-    await dio.put('/$_bucket/$bigKey',
-        data: Stream.value(bigData),
-        options: Options(
-            headers:
-                auth('PUT', '/$_bucket/$bigKey', extra: extra, ph: bigHash)));
+    await dio.put(
+      '/$_bucket/$bigKey',
+      data: Stream.value(bigData),
+      options: Options(
+        headers: auth('PUT', '/$_bucket/$bigKey', extra: extra, ph: bigHash),
+      ),
+    );
     final pMs = swP.elapsedMilliseconds;
     swP
       ..reset()
       ..start();
-    final r = await dio.get('/$_bucket/$bigKey',
-        options: Options(
-            headers: auth('GET', '/$_bucket/$bigKey'),
-            responseType: ResponseType.bytes));
+    final r = await dio.get(
+      '/$_bucket/$bigKey',
+      options: Options(
+        headers: auth('GET', '/$_bucket/$bigKey'),
+        responseType: ResponseType.bytes,
+      ),
+    );
     final gMs = swP.elapsedMilliseconds;
     ok('1MB PUT: ${pMs}ms, GET: ${gMs}ms');
-    await dio.delete('/$_bucket/$bigKey',
-        options: Options(headers: auth('DELETE', '/$_bucket/$bigKey')));
+    await dio.delete(
+      '/$_bucket/$bigKey',
+      options: Options(headers: auth('DELETE', '/$_bucket/$bigKey')),
+    );
   } catch (e) {
     fail('Large: $e');
   }

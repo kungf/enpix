@@ -3,6 +3,7 @@
 ///   S3_ENDPOINT=http://localhost:9000 S3_BUCKET=test \
 ///     S3_ACCESS_KEY=minioadmin S3_SECRET_KEY=minioadmin \
 ///     dart run test/integration/e2e_pipeline_test.dart
+library;
 
 import 'dart:convert';
 import 'dart:io';
@@ -35,12 +36,17 @@ void main() async {
   if (ak.isEmpty || sk.isEmpty) {
     err('Set S3_ACCESS_KEY and S3_SECRET_KEY environment variables');
     print(
-        'Example: S3_ACCESS_KEY=minioadmin S3_SECRET_KEY=minioadmin dart run ...');
+      'Example: S3_ACCESS_KEY=minioadmin S3_SECRET_KEY=minioadmin dart run ...',
+    );
     return;
   }
 
-  final dio = Dio(BaseOptions(
-      baseUrl: endpoint, connectTimeout: const Duration(seconds: 10)));
+  final dio = Dio(
+    BaseOptions(
+      baseUrl: endpoint,
+      connectTimeout: const Duration(seconds: 10),
+    ),
+  );
   final blake2b = Blake2b(hashLengthInBytes: 32);
   final aead = Xchacha20.poly1305Aead();
   final argon2id =
@@ -48,18 +54,25 @@ void main() async {
 
   Uint8List rand(int n) {
     final r = Uint8List(n);
-    for (int i = 0; i < n; i++) r[i] = DateTime.now().microsecond % 256;
+    for (int i = 0; i < n; i++) {
+      r[i] = DateTime.now().microsecond % 256;
+    }
     return r;
   }
 
   Future<Uint8List> deriveKek(String pw, Uint8List salt) async {
     final k = await argon2id.deriveKey(
-        secretKey: SecretKey(utf8.encode(pw)), nonce: salt);
+      secretKey: SecretKey(utf8.encode(pw)),
+      nonce: salt,
+    );
     return Uint8List.fromList(await k.extractBytes());
   }
 
   Future<Uint8List> encrypt(
-      Uint8List plain, Uint8List key, Uint8List nonce) async {
+    Uint8List plain,
+    Uint8List key,
+    Uint8List nonce,
+  ) async {
     final box =
         await aead.encrypt(plain, secretKey: SecretKey(key), nonce: nonce);
     final r =
@@ -74,9 +87,12 @@ void main() async {
     final nonce = data.sublist(0, 24);
     final ct = data.sublist(24, data.length - 16);
     final mac = Mac(data.sublist(data.length - 16));
-    return Uint8List.fromList(await aead.decrypt(
+    return Uint8List.fromList(
+      await aead.decrypt(
         SecretBox(ct, nonce: nonce, mac: mac),
-        secretKey: SecretKey(key)));
+        secretKey: SecretKey(key),
+      ),
+    );
   }
 
   Future<Uint8List> wrapKey(Uint8List key, Uint8List kek) async {
@@ -95,9 +111,12 @@ void main() async {
     final nonce = wrapped.sublist(0, 24);
     final ct = wrapped.sublist(24, wrapped.length - 16);
     final mac = Mac(wrapped.sublist(wrapped.length - 16));
-    return Uint8List.fromList(await aead.decrypt(
+    return Uint8List.fromList(
+      await aead.decrypt(
         SecretBox(ct, nonce: nonce, mac: mac),
-        secretKey: SecretKey(kek)));
+        secretKey: SecretKey(kek),
+      ),
+    );
   }
 
   // ── Helper: S3 ops with AWS Signature V4 ──
@@ -107,8 +126,12 @@ void main() async {
       .map((s) => s.isEmpty ? '' : Uri.encodeComponent(s))
       .join('/');
 
-  String sign(String method, String path, Map<String, String> hdrs,
-      String payloadHash) {
+  String sign(
+    String method,
+    String path,
+    Map<String, String> hdrs,
+    String payloadHash,
+  ) {
     final now = DateTime.now().toUtc();
     final amzDate =
         '${now.year}${p2(now.month)}${p2(now.day)}T${p2(now.hour)}${p2(now.minute)}${p2(now.second)}Z';
@@ -120,7 +143,7 @@ void main() async {
       'host': '$host$port',
       'x-amz-content-sha256': payloadHash,
       'x-amz-date': amzDate,
-      ...hdrs
+      ...hdrs,
     };
     final sorted = headers.keys.toList()..sort();
     final canonicalHeaders =
@@ -132,14 +155,14 @@ void main() async {
       '',
       '$canonicalHeaders\n',
       signedHeaders,
-      payloadHash
+      payloadHash,
     ].join('\n');
     final credentialScope = '$dateStamp/$region/s3/aws4_request';
     final stringToSign = [
       'AWS4-HMAC-SHA256',
       amzDate,
       credentialScope,
-      sha256.convert(utf8.encode(canonicalRequest)).toString()
+      sha256.convert(utf8.encode(canonicalRequest)).toString(),
     ].join('\n');
     final kDate = Hmac(sha256, utf8.encode('AWS4$sk'))
         .convert(utf8.encode(dateStamp))
@@ -153,8 +176,12 @@ void main() async {
     return 'AWS4-HMAC-SHA256 Credential=$ak/$credentialScope, SignedHeaders=$signedHeaders, Signature=$signature';
   }
 
-  Options s3Opts(String method, String path,
-      {Map<String, String>? extra, String? payloadHash}) {
+  Options s3Opts(
+    String method,
+    String path, {
+    Map<String, String>? extra,
+    String? payloadHash,
+  }) {
     final now = DateTime.now().toUtc();
     final amzDate =
         '${now.year}${p2(now.month)}${p2(now.day)}T${p2(now.hour)}${p2(now.minute)}${p2(now.second)}Z';
@@ -165,36 +192,48 @@ void main() async {
     final headers = <String, String>{
       'Host': '$host$port',
       'x-amz-content-sha256': ph,
-      'x-amz-date': amzDate
+      'x-amz-date': amzDate,
     };
     if (extra != null) headers.addAll(extra);
     headers['Authorization'] = sign(method, path, headers, ph);
     return Options(method: method, headers: headers);
   }
 
-  Future<void> s3Put(String key, Uint8List data,
-      {Map<String, String>? meta}) async {
+  Future<void> s3Put(
+    String key,
+    Uint8List data, {
+    Map<String, String>? meta,
+  }) async {
     final ph = sha256.convert(data).toString();
     final extra = <String, String>{
       'Content-Type': 'application/octet-stream',
-      'Content-Length': data.length.toString()
+      'Content-Length': data.length.toString(),
     };
     if (meta != null)
-      for (final e in meta.entries) extra['x-amz-meta-${e.key}'] = e.value;
-    await dio.put('/$bucket/$key',
-        data: Stream.value(data),
-        options: s3Opts('PUT', '/$bucket/$key', extra: extra, payloadHash: ph));
+      for (final e in meta.entries) {
+        extra['x-amz-meta-${e.key}'] = e.value;
+      }
+    await dio.put(
+      '/$bucket/$key',
+      data: Stream.value(data),
+      options: s3Opts('PUT', '/$bucket/$key', extra: extra, payloadHash: ph),
+    );
   }
 
   Future<Uint8List> s3Get(String key) async {
-    final r = await dio.get('/$bucket/$key',
-        options: s3Opts('GET', '/$bucket/$key'), data: null);
+    final r = await dio.get(
+      '/$bucket/$key',
+      options: s3Opts('GET', '/$bucket/$key'),
+      data: null,
+    );
     return Uint8List.fromList(r.data is List<int> ? r.data as List<int> : []);
   }
 
   Future<Map<String, String>> s3Head(String key) async {
-    final r = await dio.head('/$bucket/$key',
-        options: s3Opts('HEAD', '/$bucket/$key'));
+    final r = await dio.head(
+      '/$bucket/$key',
+      options: s3Opts('HEAD', '/$bucket/$key'),
+    );
     final m = <String, String>{};
     r.headers.forEach((n, v) {
       if (n.startsWith('x-amz-meta-')) m[n] = v.join(',');
@@ -202,8 +241,10 @@ void main() async {
     return m;
   }
 
-  Future<void> s3Delete(String key) async => await dio.delete('/$bucket/$key',
-      options: s3Opts('DELETE', '/$bucket/$key'));
+  Future<void> s3Delete(String key) async => await dio.delete(
+        '/$bucket/$key',
+        options: s3Opts('DELETE', '/$bucket/$key'),
+      );
 
   // ══════ Test 1: MinIO Connectivity ══════
   print('Test 1: MinIO Connectivity');
@@ -220,7 +261,8 @@ void main() async {
   // ══════ Test 2: Crypto Roundtrip ══════
   print('\nTest 2: Crypto Roundtrip');
   final plaintext = Uint8List.fromList(
-      utf8.encode('Enpix E2E ${DateTime.now().toIso8601String()}'));
+    utf8.encode('Enpix E2E ${DateTime.now().toIso8601String()}'),
+  );
   try {
     final salt = rand(16);
     final kek = await deriveKek('e2e-pass', salt);
@@ -229,17 +271,19 @@ void main() async {
 
     final encryptedData = await encrypt(plaintext, dek, nonce);
     final decrypted = await decrypt(encryptedData, dek);
-    if (utf8.decode(decrypted) == utf8.decode(plaintext))
+    if (utf8.decode(decrypted) == utf8.decode(plaintext)) {
       ok('Encrypt/decrypt roundtrip');
-    else
+    } else {
       err('Mismatch');
+    }
 
     final wrapped = await wrapKey(dek, kek);
     final unwrapped = await unwrapKey(wrapped, kek);
-    if (unwrapped.length == dek.length)
+    if (unwrapped.length == dek.length) {
       ok('Key wrap/unwrap roundtrip');
-    else
+    } else {
       err('Key wrap mismatch');
+    }
 
     final hash = await blake2b.hash(plaintext);
     ok('BLAKE2b hash: ${base64Url.encode(hash.bytes).substring(0, 16)}...');
@@ -264,11 +308,15 @@ void main() async {
 
   try {
     final sw = Stopwatch()..start();
-    await s3Put(s3Key, encryptedData, meta: {
-      'dek': base64Url.encode(wrappedDek),
-      'hash': originHashB64,
-      'filename': 'e2e_test.txt',
-    });
+    await s3Put(
+      s3Key,
+      encryptedData,
+      meta: {
+        'dek': base64Url.encode(wrappedDek),
+        'hash': originHashB64,
+        'filename': 'e2e_test.txt',
+      },
+    );
     ok('Upload: ${sw.elapsedMilliseconds}ms → $s3Key');
   } catch (e) {
     err('Upload failed: $e');
@@ -281,10 +329,11 @@ void main() async {
   try {
     final sw = Stopwatch()..start();
     final dl = await s3Get(s3Key);
-    if (dl.length == encryptedData.length)
+    if (dl.length == encryptedData.length) {
       ok('Download: ${sw.elapsedMilliseconds}ms, ${dl.length} bytes');
-    else
+    } else {
       err('Size mismatch: ${dl.length} vs ${encryptedData.length}');
+    }
   } catch (e) {
     err('Download failed: $e');
   }
@@ -293,10 +342,11 @@ void main() async {
   print('\nTest 5: Metadata Verification');
   try {
     final meta = await s3Head(s3Key);
-    if (meta['x-amz-meta-hash'] == originHashB64)
+    if (meta['x-amz-meta-hash'] == originHashB64) {
       ok('Hash in metadata matches');
-    else
+    } else {
       err('Hash mismatch');
+    }
   } catch (e) {
     err('HEAD failed: $e');
   }
@@ -315,15 +365,17 @@ void main() async {
     final recoveredHash = await blake2b.hash(recovered);
     final recoveredHashB64 = base64Url.encode(recoveredHash.bytes);
 
-    if (recoveredHashB64 == originHashB64)
+    if (recoveredHashB64 == originHashB64) {
       ok('Integrity VERIFIED');
-    else
+    } else {
       err('Integrity FAILED');
+    }
 
-    if (utf8.decode(recovered) == utf8.decode(plaintext))
+    if (utf8.decode(recovered) == utf8.decode(plaintext)) {
       ok('Content byte-perfect');
-    else
+    } else {
       err('Content mismatch');
+    }
   } catch (e) {
     err('Decrypt failed: $e');
   }
@@ -353,7 +405,9 @@ void main() async {
 
     final swD = Stopwatch()..start();
     await argon2id.deriveKey(
-        secretKey: SecretKey(utf8.encode('perf')), nonce: rand(16));
+      secretKey: SecretKey(utf8.encode('perf')),
+      nonce: rand(16),
+    );
     ok('Argon2id(64MiB): ${swD.elapsedMilliseconds}ms');
   } catch (e) {
     err('Perf test failed: $e');

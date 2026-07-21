@@ -58,6 +58,7 @@ dependencies:
   mime: ^2.0.0
   xml: ^6.5.0
 
+  crypto: any
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -67,6 +68,7 @@ dev_dependencies:
   mocktail: ^1.0.0
   flutter_lints: ^5.0.0
 
+  crypto: any
 flutter:
   uses-material-design: true
 

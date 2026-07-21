@@ -8,6 +8,7 @@
 ///   S3_ENDPOINT=http://localhost:9000 S3_BUCKET=test \
 ///     S3_ACCESS_KEY=minioadmin S3_SECRET_KEY=minioadmin \
 ///     dart run test/integration/cloud_thumbnail_test.dart
+library;
 
 import 'dart:convert';
 import 'dart:io';
@@ -29,12 +30,18 @@ final _region = Platform.environment['S3_REGION'] ?? 'us-east-1';
 String p2(int n) => n.toString().padLeft(2, '0');
 Uint8List rnd(int n) {
   final r = Uint8List(n);
-  for (int i = 0; i < n; i++) r[i] = (DateTime.now().microsecond + i) % 256;
+  for (int i = 0; i < n; i++) {
+    r[i] = (DateTime.now().microsecond + i) % 256;
+  }
   return r;
 }
 
 String sign(
-    String method, String fullPath, Map<String, String> hdrs, String ph) {
+  String method,
+  String fullPath,
+  Map<String, String> hdrs,
+  String ph,
+) {
   final now = DateTime.now().toUtc();
   final amz =
       '${now.year}${p2(now.month)}${p2(now.day)}T${p2(now.hour)}${p2(now.minute)}${p2(now.second)}Z';
@@ -53,9 +60,12 @@ String sign(
   final queryParams = uri.queryParametersAll.entries.toList()
     ..sort((a, b) => a.key.compareTo(b.key));
   final canonicalQuery = queryParams
-      .map((e) => e.value
-          .map((v) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(v)}')
-          .join('&'))
+      .map(
+        (e) => e.value
+            .map((v) =>
+                '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(v)}')
+            .join('&'),
+      )
       .join('&');
 
   final h = <String, String>{
@@ -91,8 +101,12 @@ String sign(
   return 'AWS4-HMAC-SHA256 Credential=$_ak/$scope, SignedHeaders=$signed, Signature=${Hmac(sha256, signKey).convert(utf8.encode(sts)).toString()}';
 }
 
-Map<String, String> auth(String method, String path,
-    {Map<String, String>? extra, String? ph}) {
+Map<String, String> auth(
+  String method,
+  String path, {
+  Map<String, String>? extra,
+  String? ph,
+}) {
   final now = DateTime.now().toUtc();
   final amz =
       '${now.year}${p2(now.month)}${p2(now.day)}T${p2(now.hour)}${p2(now.minute)}${p2(now.second)}Z';
@@ -132,14 +146,18 @@ void main() async {
 
   Future<Uint8List> deriveKek(String pw, Uint8List s) async {
     final k = await argon2id.deriveKey(
-        secretKey: SecretKey(utf8.encode(pw)), nonce: s);
+      secretKey: SecretKey(utf8.encode(pw)),
+      nonce: s,
+    );
     return Uint8List.fromList(await k.extractBytes());
   }
 
   /// Encrypt plaintext. Returns ciphertext + MAC (nonce NOT included).
   /// Caller must store nonce separately.
   Future<(Uint8List ctMac, Uint8List nonce)> encryptData(
-      Uint8List plain, Uint8List key) async {
+    Uint8List plain,
+    Uint8List key,
+  ) async {
     final n = rnd(24);
     final b = await aead.encrypt(plain, secretKey: SecretKey(key), nonce: n);
     final ctMac = Uint8List(b.cipherText.length + b.mac.bytes.length);
@@ -150,48 +168,70 @@ void main() async {
 
   /// Decrypt ciphertext + MAC with known nonce.
   Future<Uint8List> decryptData(
-      Uint8List ctMac, Uint8List nonce, Uint8List key) async {
+    Uint8List ctMac,
+    Uint8List nonce,
+    Uint8List key,
+  ) async {
     final ct = ctMac.sublist(0, ctMac.length - 16);
     final mac = Mac(ctMac.sublist(ctMac.length - 16));
-    return Uint8List.fromList(await aead.decrypt(
+    return Uint8List.fromList(
+      await aead.decrypt(
         SecretBox(ct, nonce: nonce, mac: mac),
-        secretKey: SecretKey(key)));
+        secretKey: SecretKey(key),
+      ),
+    );
   }
 
-  final dio = Dio(BaseOptions(
+  final dio = Dio(
+    BaseOptions(
       baseUrl: _endpoint,
       connectTimeout: const Duration(seconds: 10),
-      validateStatus: (_) => true));
+      validateStatus: (_) => true,
+    ),
+  );
 
-  Future<void> s3Put(String key, Uint8List data,
-      {Map<String, String>? meta}) async {
+  Future<void> s3Put(
+    String key,
+    Uint8List data, {
+    Map<String, String>? meta,
+  }) async {
     final ph = sha256.convert(data).toString();
     final extra = <String, String>{
       'Content-Type': 'application/octet-stream',
       'Content-Length': data.length.toString(),
     };
     if (meta != null) {
-      for (final e in meta.entries) extra['x-amz-meta-${e.key}'] = e.value;
+      for (final e in meta.entries) {
+        extra['x-amz-meta-${e.key}'] = e.value;
+      }
     }
-    final r = await dio.put('/$_bucket/$key',
-        data: Stream.value(data),
-        options: Options(
-            headers: auth('PUT', '/$_bucket/$key', extra: extra, ph: ph)));
+    final r = await dio.put(
+      '/$_bucket/$key',
+      data: Stream.value(data),
+      options: Options(
+        headers: auth('PUT', '/$_bucket/$key', extra: extra, ph: ph),
+      ),
+    );
     if (r.statusCode != 200) throw Exception('PUT ${r.statusCode}');
   }
 
   Future<Uint8List> s3Get(String key) async {
-    final r = await dio.get('/$_bucket/$key',
-        options: Options(
-            headers: auth('GET', '/$_bucket/$key'),
-            responseType: ResponseType.bytes));
+    final r = await dio.get(
+      '/$_bucket/$key',
+      options: Options(
+        headers: auth('GET', '/$_bucket/$key'),
+        responseType: ResponseType.bytes,
+      ),
+    );
     if (r.statusCode != 200) throw Exception('GET ${r.statusCode}');
     return Uint8List.fromList(List<int>.from(r.data));
   }
 
   Future<Map<String, String>> s3Head(String key) async {
-    final r = await dio.head('/$_bucket/$key',
-        options: Options(headers: auth('HEAD', '/$_bucket/$key')));
+    final r = await dio.head(
+      '/$_bucket/$key',
+      options: Options(headers: auth('HEAD', '/$_bucket/$key')),
+    );
     if (r.statusCode != 200) throw Exception('HEAD ${r.statusCode}');
     final m = <String, String>{};
     r.headers.forEach((n, v) {
@@ -203,9 +243,10 @@ void main() async {
   Future<List<String>> s3List(String prefix) async {
     final fullPath =
         '/$_bucket?list-type=2&prefix=${Uri.encodeComponent(prefix)}&max-keys=100';
-    final r = await dio.get(fullPath,
-        options:
-            Options(headers: auth('GET', fullPath, ph: 'UNSIGNED-PAYLOAD')));
+    final r = await dio.get(
+      fullPath,
+      options: Options(headers: auth('GET', fullPath, ph: 'UNSIGNED-PAYLOAD')),
+    );
     final body = r.data is String ? r.data as String : r.data.toString();
     final doc = XmlDocument.parse(body);
     final keys = <String>[];
@@ -217,13 +258,17 @@ void main() async {
   }
 
   Future<void> s3Delete(String key) async {
-    await dio.delete('/$_bucket/$key',
-        options: Options(headers: auth('DELETE', '/$_bucket/$key')));
+    await dio.delete(
+      '/$_bucket/$key',
+      options: Options(headers: auth('DELETE', '/$_bucket/$key')),
+    );
   }
 
   // ── Setup ──
   final salt = Uint8List(16);
-  for (int i = 0; i < 16; i++) salt[i] = i + 1;
+  for (int i = 0; i < 16; i++) {
+    salt[i] = i + 1;
+  }
   final kek = await deriveKek('thumb-test-pass', salt);
   final testPrefix = 'thumb-e2e-test/${DateTime.now().millisecondsSinceEpoch}';
   final createdKeys = <String>[];
@@ -262,10 +307,14 @@ void main() async {
         await encryptData(originalJpeg!, origDek);
     final (wrappedOrigDek, wrapNonce1) = await encryptData(origDek, kek);
 
-    await s3Put(fileKey, encryptedOrig, meta: {
-      'dek': base64Url.encode(wrappedOrigDek),
-      'nonce': base64Url.encode(origNonce),
-    });
+    await s3Put(
+      fileKey,
+      encryptedOrig,
+      meta: {
+        'dek': base64Url.encode(wrappedOrigDek),
+        'nonce': base64Url.encode(origNonce),
+      },
+    );
     createdKeys.add(fileKey);
     ok('Original uploaded: $fileKey (${encryptedOrig.length}B)');
 
@@ -275,10 +324,14 @@ void main() async {
         await encryptData(thumbJpeg!, thumbDek);
     final (wrappedThumbDek, wrapNonce2) = await encryptData(thumbDek, kek);
 
-    await s3Put(thumbKey, encryptedThumb, meta: {
-      'dek': base64Url.encode(wrappedThumbDek),
-      'nonce': base64Url.encode(thumbNonce),
-    });
+    await s3Put(
+      thumbKey,
+      encryptedThumb,
+      meta: {
+        'dek': base64Url.encode(wrappedThumbDek),
+        'nonce': base64Url.encode(thumbNonce),
+      },
+    );
     createdKeys.add(thumbKey);
     ok('Thumbnail uploaded: $thumbKey (${encryptedThumb.length}B)');
   } catch (e) {
@@ -317,7 +370,7 @@ void main() async {
 
     // For the test, let's just verify we can download the encrypted data
     // and that it has the right size
-    if (encrypted.length > 0) {
+    if (encrypted.isNotEmpty) {
       ok('Thumbnail downloaded: ${encrypted.length}B');
     } else {
       fail('Empty download');
@@ -332,16 +385,23 @@ void main() async {
     // Re-encrypt with known nonce
     final dek2 = rnd(32);
     final nonce2 = rnd(24);
-    final box = await aead.encrypt(originalJpeg!,
-        secretKey: SecretKey(dek2), nonce: nonce2);
+    final box = await aead.encrypt(
+      originalJpeg!,
+      secretKey: SecretKey(dek2),
+      nonce: nonce2,
+    );
     final ctMac = Uint8List(box.cipherText.length + box.mac.bytes.length);
     ctMac.setAll(0, box.cipherText);
     ctMac.setAll(box.cipherText.length, box.mac.bytes);
 
     final roundtripKey = '$testPrefix/files/roundtrip.enc';
-    await s3Put(roundtripKey, ctMac, meta: {
-      'nonce': base64Url.encode(nonce2),
-    });
+    await s3Put(
+      roundtripKey,
+      ctMac,
+      meta: {
+        'nonce': base64Url.encode(nonce2),
+      },
+    );
     createdKeys.add(roundtripKey);
 
     // Download and decrypt
@@ -350,10 +410,10 @@ void main() async {
     final dlNonce = b64Decode(dlMeta['x-amz-meta-nonce']!);
     final recovered = await decryptData(dlData, dlNonce, dek2);
 
-    if (recovered.length == originalJpeg!.length) {
+    if (recovered.length == originalJpeg.length) {
       ok('Roundtrip: size matches (${recovered.length}B)');
     } else {
-      fail('Size mismatch: ${recovered.length} vs ${originalJpeg!.length}');
+      fail('Size mismatch: ${recovered.length} vs ${originalJpeg.length}');
     }
 
     // Verify JPEG magic bytes
@@ -374,9 +434,13 @@ void main() async {
       final tKey = '$testPrefix/thumbs/${id}_thumb.enc';
       final tDek = rnd(32);
       final (encThumb, tNonce) = await encryptData(thumbJpeg!, tDek);
-      await s3Put(tKey, encThumb, meta: {
-        'nonce': base64Url.encode(tNonce),
-      });
+      await s3Put(
+        tKey,
+        encThumb,
+        meta: {
+          'nonce': base64Url.encode(tNonce),
+        },
+      );
       createdKeys.add(tKey);
       // Small delay to ensure unique timestamps
       await Future<void>.delayed(const Duration(milliseconds: 10));

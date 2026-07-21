@@ -34,14 +34,18 @@ void main() {
     );
   });
 
-  test('testConnection — full SigV4 round-trip', () async {
-    // HEAD bucket + LIST + PUT + GET + DELETE with SigV4 signing.
-    // This validates the entire signature pipeline against a real S3 endpoint.
-    // NOTE: the bucket must exist on the server. If this test fails with 404,
-    // create the bucket first (e.g. via MinIO console or mc CLI).
-    final result = await s3.testConnection();
-    print('[E2E] connection test: $result');
-  }, timeout: const Timeout(Duration(seconds: 15)));
+  test(
+    'testConnection — full SigV4 round-trip',
+    () async {
+      // HEAD bucket + LIST + PUT + GET + DELETE with SigV4 signing.
+      // This validates the entire signature pipeline against a real S3 endpoint.
+      // NOTE: the bucket must exist on the server. If this test fails with 404,
+      // create the bucket first (e.g. via MinIO console or mc CLI).
+      final result = await s3.testConnection();
+      print('[E2E] connection test: $result');
+    },
+    timeout: const Timeout(Duration(seconds: 15)),
+  );
 
   group('listObjects', () {
     test('with fingerprint prefix', () async {
@@ -52,7 +56,8 @@ void main() {
     test('with device prefix containing /', () async {
       final objects = await s3.listObjects('e2e-test-fp/e2e-test-device/');
       print(
-          '[E2E] listed ${objects.length} objects under e2e-test-fp/e2e-test-device/');
+        '[E2E] listed ${objects.length} objects under e2e-test-fp/e2e-test-device/',
+      );
     });
 
     test('returns empty for non-existent prefix', () async {
@@ -64,38 +69,41 @@ void main() {
   });
 
   group('put + get + delete', () {
-    test('round-trip — verifies PUT, GET, objectExists, DELETE signatures',
-        () async {
-      final data = Uint8List.fromList([1, 2, 3, 4, 5]);
-      final key = 'e2e-test-fp/e2e-test-device/files/20250712/e2e_rt.enc';
+    test(
+      'round-trip — verifies PUT, GET, objectExists, DELETE signatures',
+      () async {
+        final data = Uint8List.fromList([1, 2, 3, 4, 5]);
+        const key = 'e2e-test-fp/e2e-test-device/files/20250712/e2e_rt.enc';
 
-      // PUT
-      await s3.putObject(key, data);
-      print('[E2E] PUT OK');
+        // PUT
+        await s3.putObject(key, data);
+        print('[E2E] PUT OK');
 
-      // GET
-      final got = await s3.getObject(key);
-      expect(got, equals(data));
-      print('[E2E] GET OK');
+        // GET
+        final got = await s3.getObject(key);
+        expect(got, equals(data));
+        print('[E2E] GET OK');
 
-      // HEAD (objectExists)
-      final exists = await s3.objectExists(key);
-      expect(exists, isTrue);
-      print('[E2E] HEAD OK');
+        // HEAD (objectExists)
+        final exists = await s3.objectExists(key);
+        expect(exists, isTrue);
+        print('[E2E] HEAD OK');
 
-      // DELETE
-      await s3.deleteObject(key);
-      final gone = await s3.objectExists(key);
-      expect(gone, isFalse);
-      print('[E2E] DELETE OK');
-    }, timeout: const Timeout(Duration(seconds: 15)));
+        // DELETE
+        await s3.deleteObject(key);
+        final gone = await s3.objectExists(key);
+        expect(gone, isFalse);
+        print('[E2E] DELETE OK');
+      },
+      timeout: const Timeout(Duration(seconds: 15)),
+    );
   });
 
   group('cloud-gallery exact pattern', () {
     test('prefix with UUID-style deviceId and "thumbs/"', () async {
-      final fingerprint = 'e2e-test-fp';
-      final deviceId = '00b74fb5-b574-4f6f-83e5-d2da08d67c2a';
-      final prefix = '$fingerprint/$deviceId/thumbs/';
+      const fingerprint = 'e2e-test-fp';
+      const deviceId = '00b74fb5-b574-4f6f-83e5-d2da08d67c2a';
+      const prefix = '$fingerprint/$deviceId/thumbs/';
       print('[E2E] listing prefix: $prefix');
       final objects = await s3.listObjects(prefix);
       print('[E2E] listed ${objects.length} objects');
@@ -120,11 +128,13 @@ void main() {
     test('devices/ (this worked in a previous version)', () async {
       final objects = await s3.listObjects('yJrrWkKmkKuE/devices/');
       print('[E2E] devices → ${objects.length} objects');
-      for (final o in objects) print('  ${o.key}');
+      for (final o in objects) {
+        print('  ${o.key}');
+      }
     });
 
     test('exact failing prefix — catch and print raw response', () async {
-      final prefix =
+      const prefix =
           'yJrrWkKmkKuE/00b74fb5-b574-4f6f-83e5-d2da08d67c2a/thumbs/';
       print('[E2E] reproducing device error: $prefix');
       try {

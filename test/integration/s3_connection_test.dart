@@ -3,6 +3,7 @@
 ///   S3_ENDPOINT=http://192.168.18.100:9000 S3_BUCKET=wytest \
 ///     S3_ACCESS_KEY=minioadmin S3_SECRET_KEY=minioadmin \
 ///     dart run test/integration/s3_connection_test.dart
+library;
 
 import 'dart:convert';
 import 'dart:io';
@@ -20,7 +21,11 @@ final _region = Platform.environment['S3_REGION'] ?? 'us-east-1';
 String p2(int n) => n.toString().padLeft(2, '0');
 
 String sign(
-    String method, String fullPath, Map<String, String> hdrs, String ph) {
+  String method,
+  String fullPath,
+  Map<String, String> hdrs,
+  String ph,
+) {
   final now = DateTime.now().toUtc();
   final amz =
       '${now.year}${p2(now.month)}${p2(now.day)}T${p2(now.hour)}${p2(now.minute)}${p2(now.second)}Z';
@@ -37,7 +42,7 @@ String sign(
     'Host': '$host$port',
     'x-amz-content-sha256': ph,
     'x-amz-date': amz,
-    ...hdrs
+    ...hdrs,
   };
   final sorted = h.keys.toList()..sort();
   final canon =
@@ -61,14 +66,14 @@ String sign(
     canonQuery,
     '$canon\n',
     signed,
-    ph
+    ph,
   ].join('\n');
   final scope = '$date/$_region/s3/aws4_request';
   final sts = [
     'AWS4-HMAC-SHA256',
     amz,
     scope,
-    sha256.convert(utf8.encode(cr)).toString()
+    sha256.convert(utf8.encode(cr)).toString(),
   ].join('\n');
   final kDate =
       Hmac(sha256, utf8.encode('AWS4$_sk')).convert(utf8.encode(date)).bytes;
@@ -78,8 +83,12 @@ String sign(
   return 'AWS4-HMAC-SHA256 Credential=$_ak/$scope, SignedHeaders=$signed, Signature=${Hmac(sha256, signKey).convert(utf8.encode(sts)).toString()}';
 }
 
-Map<String, String> auth(String method, String fullPath,
-    {Map<String, String>? extra, String? ph}) {
+Map<String, String> auth(
+  String method,
+  String fullPath, {
+  Map<String, String>? extra,
+  String? ph,
+}) {
   final now = DateTime.now().toUtc();
   final amz =
       '${now.year}${p2(now.month)}${p2(now.day)}T${p2(now.hour)}${p2(now.minute)}${p2(now.second)}Z';
@@ -89,7 +98,7 @@ Map<String, String> auth(String method, String fullPath,
     'Host': '$host$port',
     'x-amz-content-sha256': ph ?? 'UNSIGNED-PAYLOAD',
     'x-amz-date': amz,
-    if (extra != null) ...extra
+    if (extra != null) ...extra,
   };
   h['Authorization'] = sign(method, fullPath, h, ph ?? 'UNSIGNED-PAYLOAD');
   return h;
@@ -111,11 +120,13 @@ void main() async {
   print('Endpoint: $_endpoint');
   print('Bucket: $_bucket\n');
 
-  final dio = Dio(BaseOptions(
-    baseUrl: _endpoint,
-    connectTimeout: const Duration(seconds: 10),
-    validateStatus: (_) => true,
-  ));
+  final dio = Dio(
+    BaseOptions(
+      baseUrl: _endpoint,
+      connectTimeout: const Duration(seconds: 10),
+      validateStatus: (_) => true,
+    ),
+  );
 
   const testKey = '.enpix-connection-test';
   final testData = Uint8List.fromList([1, 2, 3, 4]);
@@ -123,12 +134,15 @@ void main() async {
   // T1: HEAD bucket — connectivity
   print('T1: HEAD bucket (connectivity)');
   try {
-    final r = await dio.head('/$_bucket',
-        options: Options(headers: auth('HEAD', '/$_bucket')));
-    if (r.statusCode == 200)
+    final r = await dio.head(
+      '/$_bucket',
+      options: Options(headers: auth('HEAD', '/$_bucket')),
+    );
+    if (r.statusCode == 200) {
       ok('Connectivity OK (200)');
-    else
+    } else {
       fail('Unexpected status: ${r.statusCode}');
+    }
   } catch (e) {
     fail('Connection failed: $e');
   }
@@ -137,11 +151,13 @@ void main() async {
   print('\nT2: LIST (list permission)');
   try {
     final listPath = '/$_bucket?list-type=2&max-keys=1';
-    final r = await dio.get(listPath,
-        options: Options(headers: auth('GET', listPath)));
-    if (r.statusCode == 200)
+    final r = await dio.get(
+      listPath,
+      options: Options(headers: auth('GET', listPath)),
+    );
+    if (r.statusCode == 200) {
       ok('LIST permission OK');
-    else if (r.statusCode == 403)
+    } else if (r.statusCode == 403)
       fail('LIST denied (403)');
     else
       fail('Unexpected status: ${r.statusCode}');
@@ -153,17 +169,25 @@ void main() async {
   print('\nT3: PUT (write permission)');
   try {
     final sha = sha256.convert(testData).toString();
-    final r = await dio.put('/$_bucket/$testKey',
-        data: Stream.value(testData),
-        options: Options(
-            headers: auth('PUT', '/$_bucket/$testKey', ph: sha, extra: {
-          'Content-Type': 'application/octet-stream',
-          'Content-Length': testData.length.toString(),
-          'x-amz-content-sha256': sha,
-        })));
-    if (r.statusCode == 200)
+    final r = await dio.put(
+      '/$_bucket/$testKey',
+      data: Stream.value(testData),
+      options: Options(
+        headers: auth(
+          'PUT',
+          '/$_bucket/$testKey',
+          ph: sha,
+          extra: {
+            'Content-Type': 'application/octet-stream',
+            'Content-Length': testData.length.toString(),
+            'x-amz-content-sha256': sha,
+          },
+        ),
+      ),
+    );
+    if (r.statusCode == 200) {
       ok('PUT permission OK');
-    else if (r.statusCode == 403)
+    } else if (r.statusCode == 403)
       fail('PUT denied (403)');
     else
       fail('Unexpected status: ${r.statusCode}');
@@ -174,11 +198,13 @@ void main() async {
   // T4: HEAD object — head permission
   print('\nT4: HEAD object (head permission)');
   try {
-    final r = await dio.head('/$_bucket/$testKey',
-        options: Options(headers: auth('HEAD', '/$_bucket/$testKey')));
-    if (r.statusCode == 200)
+    final r = await dio.head(
+      '/$_bucket/$testKey',
+      options: Options(headers: auth('HEAD', '/$_bucket/$testKey')),
+    );
+    if (r.statusCode == 200) {
       ok('HEAD object OK');
-    else if (r.statusCode == 403)
+    } else if (r.statusCode == 403)
       fail('HEAD denied (403)');
     else if (r.statusCode == 404)
       fail('Object not found (404) — PUT may have failed');
@@ -191,13 +217,16 @@ void main() async {
   // T5: GET — read permission
   print('\nT5: GET (read permission)');
   try {
-    final r = await dio.get('/$_bucket/$testKey',
-        options: Options(
-            headers: auth('GET', '/$_bucket/$testKey'),
-            responseType: ResponseType.bytes));
-    if (r.statusCode == 200)
+    final r = await dio.get(
+      '/$_bucket/$testKey',
+      options: Options(
+        headers: auth('GET', '/$_bucket/$testKey'),
+        responseType: ResponseType.bytes,
+      ),
+    );
+    if (r.statusCode == 200) {
       ok('GET permission OK');
-    else if (r.statusCode == 403)
+    } else if (r.statusCode == 403)
       fail('GET denied (403)');
     else
       fail('Unexpected status: ${r.statusCode}');
@@ -208,12 +237,15 @@ void main() async {
   // T6: DELETE — cleanup
   print('\nT6: DELETE (cleanup)');
   try {
-    final r = await dio.delete('/$_bucket/$testKey',
-        options: Options(headers: auth('DELETE', '/$_bucket/$testKey')));
-    if (r.statusCode == 200 || r.statusCode == 204)
+    final r = await dio.delete(
+      '/$_bucket/$testKey',
+      options: Options(headers: auth('DELETE', '/$_bucket/$testKey')),
+    );
+    if (r.statusCode == 200 || r.statusCode == 204) {
       ok('Cleanup OK');
-    else
+    } else {
       fail('Unexpected status: ${r.statusCode}');
+    }
   } catch (e) {
     fail('Cleanup failed: $e');
   }
@@ -221,12 +253,15 @@ void main() async {
   // T7: HEAD with wrong credentials — should fail
   print('\nT7: Wrong credentials (should fail)');
   try {
-    final r = await dio.head('/$_bucket',
-        options: Options(headers: auth('HEAD', '/$_bucket')));
-    if (r.statusCode == 200)
+    final r = await dio.head(
+      '/$_bucket',
+      options: Options(headers: auth('HEAD', '/$_bucket')),
+    );
+    if (r.statusCode == 200) {
       ok('Endpoint reachable');
-    else
+    } else {
       fail('Unexpected status: ${r.statusCode}');
+    }
   } catch (e) {
     fail('Endpoint unreachable: $e');
   }

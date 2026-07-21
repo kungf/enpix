@@ -68,15 +68,21 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
       cred.startSession(kek);
       ref.read(sessionTickProvider.notifier).state++;
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('加密密码已设置'),
-            backgroundColor: context.colors.brandGreen));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('加密密码已设置'),
+            backgroundColor: context.colors.brandGreen,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
             content: Text('设置失败: $e'),
-            backgroundColor: context.colors.brandRed));
+            backgroundColor: context.colors.brandRed,
+          ),
+        );
       }
     }
   }
@@ -89,8 +95,12 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
       await cred.verifyPassphrase(oldPw);
     } on Exception {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('密码错误'), backgroundColor: context.colors.brandRed));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('密码错误'),
+            backgroundColor: context.colors.brandRed,
+          ),
+        );
       }
       return;
     }
@@ -102,15 +112,21 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
       await cred.changePassphrase(oldPw, newPw);
       ref.read(sessionTickProvider.notifier).state++;
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('密码已更新'),
-            backgroundColor: context.colors.brandGreen));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('密码已更新'),
+            backgroundColor: context.colors.brandGreen,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
             content: Text('修改失败: $e'),
-            backgroundColor: context.colors.brandRed));
+            backgroundColor: context.colors.brandRed,
+          ),
+        );
       }
     }
   }
@@ -121,8 +137,12 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
 
     if (cred.sessionMasterKey == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('请先解锁'), backgroundColor: context.colors.brandRed));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('请先解锁'),
+            backgroundColor: context.colors.brandRed,
+          ),
+        );
       }
       return;
     }
@@ -137,19 +157,24 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
       if (mounted) {
         final confirmed = await showRecoveryKeyDialog(context, mnemonic);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(confirmed == true ? '恢复密钥已备份' : '请稍后备份恢复密钥'),
-            backgroundColor: confirmed == true
-                ? context.colors.brandGreen
-                : context.colors.brandOrange,
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(confirmed == true ? '恢复密钥已备份' : '请稍后备份恢复密钥'),
+              backgroundColor: confirmed == true
+                  ? context.colors.brandGreen
+                  : context.colors.brandOrange,
+            ),
+          );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
             content: Text('备份失败: $e'),
-            backgroundColor: context.colors.brandRed));
+            backgroundColor: context.colors.brandRed,
+          ),
+        );
       }
     }
   }

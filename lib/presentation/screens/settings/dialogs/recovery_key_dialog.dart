@@ -77,7 +77,8 @@ class _RecoveryKeyDialogState extends State<_RecoveryKeyDialog> {
                   child: OutlinedButton.icon(
                     onPressed: () {
                       Clipboard.setData(
-                          ClipboardData(text: widget.words.join(' ')));
+                        ClipboardData(text: widget.words.join(' ')),
+                      );
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('已复制到剪贴板')),
                       );

@@ -24,11 +24,13 @@ class UploadSection extends ConsumerWidget {
       children: [
         SwitchListTile(
           title: const Text('上传阈值'),
-          subtitle: Text(settings.thresholdEnabled
-              ? (settings.thresholdValue == 0
-                  ? '不限'
-                  : '仅上传 ${settings.thresholdValue.toInt()} ${settings.unitHours ? '小时' : '天'}前拍摄的照片')
-              : '已禁用'),
+          subtitle: Text(
+            settings.thresholdEnabled
+                ? (settings.thresholdValue == 0
+                    ? '不限'
+                    : '仅上传 ${settings.thresholdValue.toInt()} ${settings.unitHours ? '小时' : '天'}前拍摄的照片')
+                : '已禁用',
+          ),
           value: settings.thresholdEnabled,
           onChanged: notifier.setThresholdEnabled,
         ),
@@ -51,15 +53,22 @@ class UploadSection extends ConsumerWidget {
   ) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.md),
+        AppSpacing.lg,
+        0,
+        AppSpacing.lg,
+        AppSpacing.md,
+      ),
       child: Column(
         children: [
           Row(
             children: [
               Text(
-                  '拍摄于 ${settings.thresholdValue.toInt()} ${settings.unitHours ? '小时' : '天'}前',
-                  style: TextStyle(
-                      fontSize: 13, color: context.colors.labelSecondary)),
+                '拍摄于 ${settings.thresholdValue.toInt()} ${settings.unitHours ? '小时' : '天'}前',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: context.colors.labelSecondary,
+                ),
+              ),
               const Spacer(),
               _UnitSegment(
                 isHours: settings.unitHours,

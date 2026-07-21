@@ -38,8 +38,11 @@ class RecoveryService {
 
     // 3. Upload to S3
     final s3Key = _makeRecoveryKey(kekFingerprint);
-    await _s3.putObject(s3Key, wrappedMk,
-        contentType: 'application/octet-stream');
+    await _s3.putObject(
+      s3Key,
+      wrappedMk,
+      contentType: 'application/octet-stream',
+    );
 
     _log.info('Recovery key uploaded to S3');
 
@@ -80,7 +83,7 @@ class RecoveryService {
       masterKey = await _crypto.unwrapKey(wrappedMk, recoveryKey);
     } on Exception catch (_) {
       _crypto.secureFree(recoveryKey);
-      throw RecoveryException('恢复密钥错误或数据损坏');
+      throw const RecoveryException('恢复密钥错误或数据损坏');
     } finally {
       _crypto.secureFree(recoveryKey);
     }
@@ -105,7 +108,7 @@ class RecoveryService {
   Uint8List _mnemonicToRecoveryKey(String mnemonic) {
     final trimmed = mnemonic.trim().split(RegExp(r'\s+')).join(' ');
     if (!bip39.validateMnemonic(trimmed)) {
-      throw RecoveryException('恢复密钥格式错误，请检查是否为 24 个英文单词');
+      throw const RecoveryException('恢复密钥格式错误，请检查是否为 24 个英文单词');
     }
     final hex = bip39.mnemonicToEntropy(trimmed);
     final bytes = Uint8List(32);

@@ -22,7 +22,9 @@ final deviceServiceProvider = Provider<DeviceService>((ref) => DeviceService());
 
 final credentialServiceProvider = Provider<CredentialService>((ref) {
   return CredentialService(
-      ref.watch(cryptoServiceProvider), const FlutterSecureStorage());
+    ref.watch(cryptoServiceProvider),
+    const FlutterSecureStorage(),
+  );
 });
 
 final s3ServiceProvider = Provider<S3Service>((ref) => S3Service());

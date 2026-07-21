@@ -78,7 +78,9 @@ class BackupManager extends StateNotifier<BackupTask> {
     );
     if (albums.isEmpty) {
       state = state.copyWith(
-          status: BackupStatus.completed, completedAt: DateTime.now());
+        status: BackupStatus.completed,
+        completedAt: DateTime.now(),
+      );
       return;
     }
 
@@ -95,7 +97,9 @@ class BackupManager extends StateNotifier<BackupTask> {
 
     if (_cancelled) {
       state = state.copyWith(
-          status: BackupStatus.stopped, completedAt: DateTime.now());
+        status: BackupStatus.stopped,
+        completedAt: DateTime.now(),
+      );
       return;
     }
 
@@ -156,7 +160,8 @@ class BackupManager extends StateNotifier<BackupTask> {
     );
 
     _log.info(
-        'Backup started: ${pending.length} pending, $totalSkipped total already uploaded');
+      'Backup started: ${pending.length} pending, $totalSkipped total already uploaded',
+    );
 
     int completed = 0, failed = 0, skipped = 0, totalBytes = 0;
     final errors = <String>[];
@@ -186,7 +191,10 @@ class BackupManager extends StateNotifier<BackupTask> {
                 await _cache.save(r.assetId, r.thumbData!);
               } catch (e, st) {
                 _log.warning(
-                    'Thumbnail cache save failed: ${r.fileName} — $e', e, st);
+                  'Thumbnail cache save failed: ${r.fileName} — $e',
+                  e,
+                  st,
+                );
               }
             }
           }
@@ -247,7 +255,11 @@ class BackupManager extends StateNotifier<BackupTask> {
   /// Upload error report to S3 debug directory for remote diagnostics.
   /// Throws on failure — callers should handle errors.
   Future<void> _uploadErrorReport(
-      List<String> errors, int completed, int failed, int skipped) async {
+    List<String> errors,
+    int completed,
+    int failed,
+    int skipped,
+  ) async {
     if (!_s3.isConfigured) {
       throw StateError('S3 未配置，无法上传错误报告');
     }

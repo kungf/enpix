@@ -221,8 +221,8 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
             ),
             decoration: BoxDecoration(
               color: context.colors.backgroundSecondary,
-              borderRadius:
-                  BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+              borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(AppRadius.xl)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -247,10 +247,13 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
                         EnpixLinearProgress(value: task.progress),
                         if (task.currentFileName != null) ...[
                           const SizedBox(height: AppSpacing.md),
-                          Text(task.currentFileName!,
-                              style: TextStyle(
-                                  color: context.colors.labelSecondary,
-                                  fontSize: 13)),
+                          Text(
+                            task.currentFileName!,
+                            style: TextStyle(
+                              color: context.colors.labelSecondary,
+                              fontSize: 13,
+                            ),
+                          ),
                         ],
                         const SizedBox(height: AppSpacing.xl),
                         if (task.isRunning || task.totalBytes > 0)
@@ -258,28 +261,32 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
                         const SizedBox(height: AppSpacing.xl),
                         ProgressActions(task: task, manager: manager),
                         if (task.errors.isNotEmpty) ...[
-                          SizedBox(height: AppSpacing.lg),
-                          Divider(),
-                          SizedBox(height: AppSpacing.lg),
+                          const SizedBox(height: AppSpacing.lg),
+                          const Divider(),
+                          const SizedBox(height: AppSpacing.lg),
                           ErrorList(
-                              errors: task.errors,
-                              onReport: () async {
-                                try {
-                                  await manager.reportErrors(task.errors);
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                          content: Text('错误报告已上传'),
-                                          backgroundColor:
-                                              context.colors.brandGreen),
-                                    );
-                                  }
-                                } catch (e) {
-                                  if (mounted)
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('上传失败: $e')));
+                            errors: task.errors,
+                            onReport: () async {
+                              try {
+                                await manager.reportErrors(task.errors);
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: const Text('错误报告已上传'),
+                                      backgroundColor:
+                                          context.colors.brandGreen,
+                                    ),
+                                  );
                                 }
-                              }),
+                              } catch (e) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('上传失败: $e')),
+                                  );
+                                }
+                              }
+                            },
+                          ),
                         ],
                       ],
                     ),
@@ -319,11 +326,13 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
     _sections = [];
     for (final key in sortedKeys) {
       final assets = groups[key]!;
-      _sections.add(_DaySection(
-        dateKey: key,
-        label: _formatDateLabel(key),
-        assets: assets,
-      ));
+      _sections.add(
+        _DaySection(
+          dateKey: key,
+          label: _formatDateLabel(key),
+          assets: assets,
+        ),
+      );
     }
   }
 
@@ -383,8 +392,9 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
             ? [
                 _SelectionCount(count: _selected.length),
                 IconButton(
-                    icon: const Icon(Icons.close_rounded),
-                    onPressed: _exitSelection),
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: _exitSelection,
+                ),
               ]
             : null,
       ),
@@ -401,25 +411,33 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
   }
 
   Widget _buildBody() {
-    if (_loadingPermission)
+    if (_loadingPermission) {
       return const EnpixLoadingState(message: '正在加载照片...');
-    if (_error)
+    }
+    if (_error) {
       return EnpixErrorState(
-          title: '无法加载照片', subtitle: _errorMsg, onRetry: _requestPermission);
+        title: '无法加载照片',
+        subtitle: _errorMsg,
+        onRetry: _requestPermission,
+      );
+    }
     if (!_hasPermission) {
       return EnpixEmptyState(
         icon: Icons.photo_library_outlined,
         title: '需要照片访问权限',
         subtitle: '请在设置中允许 Enpix 访问照片',
         action: FilledButton(
-            onPressed: _requestPermission, child: const Text('授权')),
+          onPressed: _requestPermission,
+          child: const Text('授权'),
+        ),
       );
     }
     if (_assets.isEmpty && !_loading) {
       return const EnpixEmptyState(
-          icon: Icons.photo_library_outlined,
-          title: '还没有照片',
-          subtitle: '拍摄照片后会显示在这里');
+        icon: Icons.photo_library_outlined,
+        title: '还没有照片',
+        subtitle: '拍摄照片后会显示在这里',
+      );
     }
 
     return NotificationListener<ScrollNotification>(
@@ -435,17 +453,21 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
         slivers: [
           SliverToBoxAdapter(
             child: _TypeFilter(
-                current: _filter,
-                onChanged: (v) {
-                  setState(() => _filter = v);
-                  _rebuildSections();
-                }),
+              current: _filter,
+              onChanged: (v) {
+                setState(() => _filter = v);
+                _rebuildSections();
+              },
+            ),
           ),
           for (final section in _sections) ...[
             SliverToBoxAdapter(child: _DayHeader(section: section)),
             SliverGrid(
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3, crossAxisSpacing: 2, mainAxisSpacing: 2),
+                crossAxisCount: 3,
+                crossAxisSpacing: 2,
+                mainAxisSpacing: 2,
+              ),
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
                   final asset = section.assets[index];
@@ -498,8 +520,11 @@ class _DaySection {
   final String dateKey;
   final String label;
   final List<AssetEntity> assets;
-  const _DaySection(
-      {required this.dateKey, required this.label, required this.assets});
+  const _DaySection({
+    required this.dateKey,
+    required this.label,
+    required this.assets,
+  });
 }
 
 // ── Type filter chips ──
@@ -521,7 +546,9 @@ class _TypeFilter extends StatelessWidget {
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+          horizontal: AppSpacing.lg,
+          vertical: AppSpacing.sm,
+        ),
         children: filters.map((f) {
           final (key, label, icon) = f;
           final s = current == key;
@@ -529,20 +556,22 @@ class _TypeFilter extends StatelessWidget {
             padding: const EdgeInsets.only(right: AppSpacing.sm),
             child: FilterChip(
               selected: s,
-              avatar: Icon(icon,
-                  size: 16,
-                  color: s
-                      ? context.colors.brandBlue
-                      : context.colors.labelSecondary),
+              avatar: Icon(
+                icon,
+                size: 16,
+                color: s
+                    ? context.colors.brandBlue
+                    : context.colors.labelSecondary,
+              ),
               label: Text(label),
               onSelected: (_) => onChanged(key),
               selectedColor: context.colors.brandBlue.withAlpha(25),
               labelStyle: TextStyle(
-                  fontSize: 14,
-                  fontWeight: s ? FontWeight.w600 : FontWeight.w500,
-                  color: s
-                      ? context.colors.brandBlue
-                      : context.colors.labelPrimary),
+                fontSize: 14,
+                fontWeight: s ? FontWeight.w600 : FontWeight.w500,
+                color:
+                    s ? context.colors.brandBlue : context.colors.labelPrimary,
+              ),
               showCheckmark: false,
               side: BorderSide.none,
             ),
@@ -563,27 +592,40 @@ class _DayHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.sm),
+        AppSpacing.lg,
+        AppSpacing.xl,
+        AppSpacing.lg,
+        AppSpacing.sm,
+      ),
       child: Row(
         children: [
-          Text(section.label,
-              style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: context.colors.labelPrimary,
-                  letterSpacing: -0.5)),
+          Text(
+            section.label,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: context.colors.labelPrimary,
+              letterSpacing: -0.5,
+            ),
+          ),
           const SizedBox(width: AppSpacing.sm),
           Container(
             padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.xxs,
+            ),
             decoration: BoxDecoration(
-                color: context.colors.fillSecondary,
-                borderRadius: BorderRadius.circular(AppRadius.sm)),
-            child: Text('${section.assets.length}',
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: context.colors.labelSecondary)),
+              color: context.colors.fillSecondary,
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            ),
+            child: Text(
+              '${section.assets.length}',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: context.colors.labelSecondary,
+              ),
+            ),
           ),
         ],
       ),
@@ -598,12 +640,13 @@ class _AssetThumb extends ConsumerStatefulWidget {
   final bool selected;
   final bool isUploaded;
   final VoidCallback? onTap, onLongPress;
-  const _AssetThumb(
-      {required this.asset,
-      this.selected = false,
-      this.isUploaded = false,
-      this.onTap,
-      this.onLongPress});
+  const _AssetThumb({
+    required this.asset,
+    this.selected = false,
+    this.isUploaded = false,
+    this.onTap,
+    this.onLongPress,
+  });
   @override
   ConsumerState<_AssetThumb> createState() => _AssetThumbState();
 }
@@ -621,8 +664,9 @@ class _AssetThumbState extends ConsumerState<_AssetThumb> {
     final data = await ref.read(localThumbnailLoaderProvider).load(
           widget.asset.id,
           () => widget.asset.thumbnailDataWithSize(
-              const ThumbnailSize(256, 256),
-              format: ThumbnailFormat.jpeg),
+            const ThumbnailSize(256, 256),
+            format: ThumbnailFormat.jpeg,
+          ),
         );
     if (mounted) setState(() => _thumb = data);
   }
@@ -636,39 +680,55 @@ class _AssetThumbState extends ConsumerState<_AssetThumb> {
         fit: StackFit.expand,
         children: [
           ClipRRect(
-              borderRadius: BorderRadius.circular(AppRadius.xxs),
-              child: _thumb != null
-                  ? Image.memory(_thumb!, fit: BoxFit.cover)
-                  : Container(color: context.colors.fillSecondary)),
+            borderRadius: BorderRadius.circular(AppRadius.xxs),
+            child: _thumb != null
+                ? Image.memory(_thumb!, fit: BoxFit.cover)
+                : Container(color: context.colors.fillSecondary),
+          ),
           if (widget.asset.type == AssetType.video)
             Positioned(
-                bottom: 4,
-                left: 4,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                  decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(3)),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.play_arrow_rounded,
-                        size: 14, color: Colors.white),
-                    Text(formatDuration(widget.asset.duration),
-                        style: TextStyle(color: Colors.white, fontSize: 10)),
-                  ]),
-                )),
+              bottom: 4,
+              left: 4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.play_arrow_rounded,
+                      size: 14,
+                      color: Colors.white,
+                    ),
+                    Text(
+                      formatDuration(widget.asset.duration),
+                      style: const TextStyle(color: Colors.white, fontSize: 10),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           if (widget.isUploaded && !widget.selected)
             Positioned(
-                top: 4,
-                right: 4,
-                child: Container(
-                    width: 16,
-                    height: 16,
-                    decoration: BoxDecoration(
-                        color: context.colors.brandGreen,
-                        shape: BoxShape.circle),
-                    child: const Icon(Icons.cloud_done_rounded,
-                        size: 10, color: Colors.white))),
+              top: 4,
+              right: 4,
+              child: Container(
+                width: 16,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: context.colors.brandGreen,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.cloud_done_rounded,
+                  size: 10,
+                  color: Colors.white,
+                ),
+              ),
+            ),
           if (widget.selected)
             Container(
               decoration: BoxDecoration(
@@ -677,12 +737,16 @@ class _AssetThumbState extends ConsumerState<_AssetThumb> {
                 borderRadius: BorderRadius.circular(AppRadius.xxs),
               ),
               child: Align(
-                  alignment: Alignment.topRight,
-                  child: Padding(
-                    padding: EdgeInsets.all(4),
-                    child: Icon(Icons.check_circle_rounded,
-                        color: context.colors.brandBlue, size: 22),
-                  )),
+                alignment: Alignment.topRight,
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(
+                    Icons.check_circle_rounded,
+                    color: context.colors.brandBlue,
+                    size: 22,
+                  ),
+                ),
+              ),
             ),
         ],
       ),
@@ -723,19 +787,24 @@ class _AnimatedBackupFabState extends State<_AnimatedBackupFab>
 
     // Arrow: slides from bottom of cloud to top, fading out, then resets.
     _arrowCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 900));
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
     _arrowOffset = Tween(begin: 10.0, end: -10.0).animate(
       CurvedAnimation(parent: _arrowCtrl, curve: Curves.easeOut),
     );
     _arrowOpacity = Tween(begin: 1.0, end: 0.0).animate(
       CurvedAnimation(
-          parent: _arrowCtrl,
-          curve: const Interval(0.3, 0.9, curve: Curves.easeOut)),
+        parent: _arrowCtrl,
+        curve: const Interval(0.3, 0.9, curve: Curves.easeOut),
+      ),
     );
 
     // Done: elastic bounce-in
     _doneCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 500));
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
     _doneScale = CurvedAnimation(parent: _doneCtrl, curve: Curves.easeOutBack);
 
     if (widget.task.isRunning) _arrowCtrl.repeat();
@@ -809,8 +878,11 @@ class _AnimatedBackupFabState extends State<_AnimatedBackupFab>
                 clipBehavior: Clip.none,
                 children: [
                   const Center(
-                    child: Icon(Icons.cloud_rounded,
-                        color: Colors.white, size: 22),
+                    child: Icon(
+                      Icons.cloud_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
                   ),
                   // Arrow A — slides from bottom to top
                   Positioned.fill(
@@ -821,8 +893,11 @@ class _AnimatedBackupFabState extends State<_AnimatedBackupFab>
                           offset: Offset(0, _arrowOffset.value),
                           child: Opacity(
                             opacity: _arrowOpacity.value,
-                            child: const Icon(Icons.arrow_upward_rounded,
-                                color: Colors.white, size: 12),
+                            child: const Icon(
+                              Icons.arrow_upward_rounded,
+                              color: Colors.white,
+                              size: 12,
+                            ),
                           ),
                         );
                       },
@@ -843,8 +918,11 @@ class _AnimatedBackupFabState extends State<_AnimatedBackupFab>
                           offset: Offset(0, offset),
                           child: Opacity(
                             opacity: opacity,
-                            child: const Icon(Icons.arrow_upward_rounded,
-                                color: Colors.white, size: 12),
+                            child: const Icon(
+                              Icons.arrow_upward_rounded,
+                              color: Colors.white,
+                              size: 12,
+                            ),
                           ),
                         );
                       },
@@ -861,8 +939,11 @@ class _AnimatedBackupFabState extends State<_AnimatedBackupFab>
               builder: (context, child) {
                 return Transform.scale(
                   scale: _doneScale.value,
-                  child: const Icon(Icons.check_circle_rounded,
-                      color: Colors.white, size: 22),
+                  child: const Icon(
+                    Icons.check_circle_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
                 );
               },
             ),
@@ -880,15 +961,21 @@ class _SelectionCount extends StatelessWidget {
         child: Container(
           margin: const EdgeInsets.only(right: AppSpacing.sm),
           padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.xxs,
+          ),
           decoration: BoxDecoration(
-              color: context.colors.brandBlue.withAlpha(25),
-              borderRadius: BorderRadius.circular(AppRadius.sm)),
-          child: Text('已选 $count',
-              style: TextStyle(
-                  color: context.colors.brandBlue,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14)),
+            color: context.colors.brandBlue.withAlpha(25),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+          ),
+          child: Text(
+            '已选 $count',
+            style: TextStyle(
+              color: context.colors.brandBlue,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
+          ),
         ),
       );
 }

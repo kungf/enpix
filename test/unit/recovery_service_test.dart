@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:enpix/services/crypto/crypto_service.dart';
-import 'package:enpix/services/crypto/recovery_service.dart';
 
 void main() {
   late CryptoService crypto;
@@ -79,13 +78,17 @@ void main() {
   });
 
   group('Adaptive Argon2id', () {
-    test('probeArgon2Params returns valid params', () async {
-      final salt = crypto.generateSalt();
-      final params = await crypto.probeArgon2Params('test-password', salt);
+    test(
+      'probeArgon2Params returns valid params',
+      () async {
+        final salt = crypto.generateSalt();
+        final params = await crypto.probeArgon2Params('test-password', salt);
 
-      expect(params.memory, greaterThanOrEqualTo(65536)); // >= 64 MiB
-      expect(params.ops, greaterThanOrEqualTo(3));
-    }, timeout: const Timeout(Duration(minutes: 2)));
+        expect(params.memory, greaterThanOrEqualTo(65536)); // >= 64 MiB
+        expect(params.ops, greaterThanOrEqualTo(3));
+      },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
 
     test('deriveKekWithParams produces 32 bytes', () async {
       final salt = crypto.generateSalt();
@@ -103,7 +106,7 @@ void main() {
         'deriveKek and deriveKekWithParams with same params produce same result',
         () async {
       final salt = crypto.generateSalt();
-      final passphrase = 'same-password';
+      const passphrase = 'same-password';
 
       final kek1 = await crypto.deriveKek(passphrase, salt);
       final kek2 = await crypto.deriveKekWithParams(

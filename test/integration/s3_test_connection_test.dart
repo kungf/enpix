@@ -3,6 +3,7 @@
 ///   S3_ENDPOINT=http://192.168.18.100:9000 S3_BUCKET=wytest \
 ///     S3_ACCESS_KEY=minioadmin S3_SECRET_KEY=minioadmin \
 ///     dart run test/integration/s3_test_connection_test.dart
+library;
 
 import 'dart:io';
 import 'package:enpix/domain/entities/storage_config.dart';
@@ -44,14 +45,16 @@ void main() async {
 
   // T2: Configure with correct credentials — should pass.
   print('\nT2: Correct credentials (should pass)');
-  s3.configure(StorageConfig(
-    endpointUrl: _endpoint,
-    bucketName: _bucket,
-    region: _region,
-    accessKey: _ak,
-    secretKey: _sk,
-    updatedAt: DateTime.now().millisecondsSinceEpoch,
-  ));
+  s3.configure(
+    StorageConfig(
+      endpointUrl: _endpoint,
+      bucketName: _bucket,
+      region: _region,
+      accessKey: _ak,
+      secretKey: _sk,
+      updatedAt: DateTime.now().millisecondsSinceEpoch,
+    ),
+  );
   try {
     final msg = await s3.testConnection();
     ok('Passed: $msg');
@@ -61,14 +64,16 @@ void main() async {
 
   // T3: Wrong access key — should fail.
   print('\nT3: Wrong access key (should fail)');
-  s3.configure(StorageConfig(
-    endpointUrl: _endpoint,
-    bucketName: _bucket,
-    region: _region,
-    accessKey: 'wrong-key',
-    secretKey: _sk,
-    updatedAt: DateTime.now().millisecondsSinceEpoch,
-  ));
+  s3.configure(
+    StorageConfig(
+      endpointUrl: _endpoint,
+      bucketName: _bucket,
+      region: _region,
+      accessKey: 'wrong-key',
+      secretKey: _sk,
+      updatedAt: DateTime.now().millisecondsSinceEpoch,
+    ),
+  );
   try {
     await s3.testConnection();
     fail('Should have thrown');
@@ -78,14 +83,16 @@ void main() async {
 
   // T4: Wrong bucket — should fail.
   print('\nT4: Wrong bucket (should fail)');
-  s3.configure(StorageConfig(
-    endpointUrl: _endpoint,
-    bucketName: 'nonexistent-bucket-xyz',
-    region: _region,
-    accessKey: _ak,
-    secretKey: _sk,
-    updatedAt: DateTime.now().millisecondsSinceEpoch,
-  ));
+  s3.configure(
+    StorageConfig(
+      endpointUrl: _endpoint,
+      bucketName: 'nonexistent-bucket-xyz',
+      region: _region,
+      accessKey: _ak,
+      secretKey: _sk,
+      updatedAt: DateTime.now().millisecondsSinceEpoch,
+    ),
+  );
   try {
     await s3.testConnection();
     fail('Should have thrown');
@@ -95,14 +102,16 @@ void main() async {
 
   // T5: Wrong endpoint — should fail.
   print('\nT5: Wrong endpoint (should fail)');
-  s3.configure(StorageConfig(
-    endpointUrl: 'http://192.168.18.100:19999',
-    bucketName: _bucket,
-    region: _region,
-    accessKey: _ak,
-    secretKey: _sk,
-    updatedAt: DateTime.now().millisecondsSinceEpoch,
-  ));
+  s3.configure(
+    StorageConfig(
+      endpointUrl: 'http://192.168.18.100:19999',
+      bucketName: _bucket,
+      region: _region,
+      accessKey: _ak,
+      secretKey: _sk,
+      updatedAt: DateTime.now().millisecondsSinceEpoch,
+    ),
+  );
   try {
     await s3.testConnection();
     fail('Should have thrown');
@@ -112,14 +121,16 @@ void main() async {
 
   // T6: Re-configure with correct credentials — should pass again.
   print('\nT6: Re-configure correct (should pass)');
-  s3.configure(StorageConfig(
-    endpointUrl: _endpoint,
-    bucketName: _bucket,
-    region: _region,
-    accessKey: _ak,
-    secretKey: _sk,
-    updatedAt: DateTime.now().millisecondsSinceEpoch,
-  ));
+  s3.configure(
+    StorageConfig(
+      endpointUrl: _endpoint,
+      bucketName: _bucket,
+      region: _region,
+      accessKey: _ak,
+      secretKey: _sk,
+      updatedAt: DateTime.now().millisecondsSinceEpoch,
+    ),
+  );
   try {
     final msg = await s3.testConnection();
     ok('Passed: $msg');

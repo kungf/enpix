@@ -3,6 +3,7 @@
 ///   S3_ENDPOINT=http://192.168.18.100:9000 S3_BUCKET=wytest \
 ///     S3_ACCESS_KEY=minioadmin S3_SECRET_KEY=minioadmin \
 ///     dart run test/integration/s3_get_object_test.dart
+library;
 
 import 'dart:io';
 import 'dart:typed_data';
@@ -31,14 +32,16 @@ void main() async {
   print('═══ S3 getObject() Test ═══\n');
 
   final s3 = S3Service();
-  s3.configure(StorageConfig(
-    endpointUrl: _endpoint,
-    bucketName: _bucket,
-    region: _region,
-    accessKey: _ak,
-    secretKey: _sk,
-    updatedAt: DateTime.now().millisecondsSinceEpoch,
-  ));
+  s3.configure(
+    StorageConfig(
+      endpointUrl: _endpoint,
+      bucketName: _bucket,
+      region: _region,
+      accessKey: _ak,
+      secretKey: _sk,
+      updatedAt: DateTime.now().millisecondsSinceEpoch,
+    ),
+  );
 
   // T1: PUT + GET roundtrip.
   print('T1: PUT + GET roundtrip');
@@ -60,13 +63,14 @@ void main() async {
   print('\nT2: GET with date folder key');
   try {
     final data = Uint8List.fromList([10, 20, 30]);
-    final key = 'files/20260701/test-file.enc';
+    const key = 'files/20260701/test-file.enc';
     await s3.putObject(key, data);
     final got = await s3.getObject(key);
-    if (got.length == 3 && got[0] == 10)
+    if (got.length == 3 && got[0] == 10) {
       ok('Date folder key works');
-    else
+    } else {
       fail('Content mismatch');
+    }
     await s3.deleteObject(key);
   } catch (e) {
     fail('Failed: $e');
@@ -77,13 +81,14 @@ void main() async {
   try {
     final data =
         Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0]); // fake JPEG header
-    final key = 'thumbs/20260701/abc-123_thumb.enc';
+    const key = 'thumbs/20260701/abc-123_thumb.enc';
     await s3.putObject(key, data);
     final got = await s3.getObject(key);
-    if (got.length == 4 && got[0] == 0xFF)
+    if (got.length == 4 && got[0] == 0xFF) {
       ok('Thumb key works');
-    else
+    } else {
       fail('Content mismatch');
+    }
     await s3.deleteObject(key);
   } catch (e) {
     fail('Failed: $e');
@@ -93,14 +98,17 @@ void main() async {
   print('\nT4: GET full image key');
   try {
     final data = Uint8List(1024); // 1KB fake encrypted photo
-    for (int i = 0; i < data.length; i++) data[i] = i % 256;
-    final key = 'files/20260701/full-photo-uuid.enc';
+    for (int i = 0; i < data.length; i++) {
+      data[i] = i % 256;
+    }
+    const key = 'files/20260701/full-photo-uuid.enc';
     await s3.putObject(key, data);
     final got = await s3.getObject(key);
-    if (got.length == 1024 && got[255] == 255)
+    if (got.length == 1024 && got[255] == 255) {
       ok('Full image key works (${got.length} bytes)');
-    else
+    } else {
       fail('Content mismatch');
+    }
     await s3.deleteObject(key);
   } catch (e) {
     fail('Failed: $e');
@@ -121,15 +129,17 @@ void main() async {
     final data = Uint8List.fromList([100, 200, 50, 75]);
     await s3.putObject('flow-test.obj', data, metadata: {'test': 'value'});
     final head = await s3.headObject('flow-test.obj');
-    if (head['x-amz-meta-test'] == 'value')
+    if (head['x-amz-meta-test'] == 'value') {
       ok('HEAD metadata OK');
-    else
+    } else {
       fail('Metadata mismatch');
+    }
     final got = await s3.getObject('flow-test.obj');
-    if (got.length == 4)
+    if (got.length == 4) {
       ok('GET OK');
-    else
+    } else {
       fail('Size mismatch');
+    }
     await s3.deleteObject('flow-test.obj');
     try {
       await s3.headObject('flow-test.obj');

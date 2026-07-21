@@ -288,9 +288,11 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       children: [
         Icon(Icons.security_rounded, size: 80, color: context.colors.brandBlue),
         const SizedBox(height: AppSpacing.xxl),
-        Text('欢迎使用 Enpix',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.headlineSmall),
+        Text(
+          '欢迎使用 Enpix',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
         const SizedBox(height: AppSpacing.md),
         Text(
           '端到端加密照片备份。开始前需要配置 S3 存储并设置加密密码。',
@@ -313,11 +315,14 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('填写 S3 / MinIO 连接信息',
-            style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: context.colors.labelPrimary)),
+        Text(
+          '填写 S3 / MinIO 连接信息',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: context.colors.labelPrimary,
+          ),
+        ),
         const SizedBox(height: AppSpacing.md),
         _field(_endpoint, 'Endpoint URL', 'https://s3.example.com'),
         _field(_bucket, 'Bucket', 'my-bucket'),
@@ -345,7 +350,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               ? const SizedBox(
                   width: 18,
                   height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2))
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
               : const Text('测试连接并保存'),
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -369,9 +375,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           _passwordSet ? '加密密码已设置' : '设置加密密码',
           textAlign: TextAlign.center,
           style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: context.colors.labelPrimary),
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: context.colors.labelPrimary,
+          ),
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(
@@ -398,8 +405,12 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     );
   }
 
-  Widget _field(TextEditingController ctrl, String label, String hint,
-      {bool obscure = false}) {
+  Widget _field(
+    TextEditingController ctrl,
+    String label,
+    String hint, {
+    bool obscure = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: TextField(

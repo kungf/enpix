@@ -13,25 +13,27 @@ void main() {
   }
 
   test('preserves single-encoded / as %2F', () {
-    final path = '/bucket?list-type=2&prefix=abc%2Fdev%2F&max-keys=1000';
+    const path = '/bucket?list-type=2&prefix=abc%2Fdev%2F&max-keys=1000';
     final query = canonicalQuery(path);
     expect(query, contains('%2F'));
     expect(query, isNot(contains('%252F')));
   });
 
   test('does NOT re-encode, no double encoding', () {
-    final path = '/bucket?prefix=abc%2Fdevices%2F';
+    const path = '/bucket?prefix=abc%2Fdevices%2F';
     expect(canonicalQuery(path), 'prefix=abc%2Fdevices%2F');
   });
 
   test('sorts alphabetically', () {
-    expect(canonicalQuery('/bucket?z=last&a=first&m=middle'),
-        'a=first&m=middle&z=last');
+    expect(
+      canonicalQuery('/bucket?z=last&a=first&m=middle'),
+      'a=first&m=middle&z=last',
+    );
   });
 
   test('full listObjects simulation — no double encoding', () {
     // Simulates what listObjects sends to _signedOptions
-    final prefix = 'fp123/device456/thumbs/';
+    const prefix = 'fp123/device456/thumbs/';
     final encodedPrefix = Uri.encodeComponent(prefix);
     final parts = ['list-type=2', 'prefix=$encodedPrefix', 'max-keys=1000'];
     parts.sort();
@@ -39,8 +41,10 @@ void main() {
     final query = canonicalQuery(path);
 
     // Must match single-encoded sorted query
-    expect(query,
-        'list-type=2&max-keys=1000&prefix=fp123%2Fdevice456%2Fthumbs%2F');
+    expect(
+      query,
+      'list-type=2&max-keys=1000&prefix=fp123%2Fdevice456%2Fthumbs%2F',
+    );
     // CRITICAL: must NOT have triple-digit percent encoding (%25 → %252 = double)
     expect(query, isNot(contains('%252')));
   });

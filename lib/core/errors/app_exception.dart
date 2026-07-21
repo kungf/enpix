@@ -4,5 +4,5 @@ abstract class AppException implements Exception {
   final StackTrace? stackTrace;
   const AppException({required this.message, this.cause, this.stackTrace});
   @override
-  String toString() => '${runtimeType}: $message';
+  String toString() => '$runtimeType: $message';
 }
