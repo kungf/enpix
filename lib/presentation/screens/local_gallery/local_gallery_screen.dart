@@ -12,6 +12,7 @@ import 'package:enpix/presentation/shared/widgets/enpix_empty_state.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_error_state.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_progress.dart';
 import 'package:enpix/presentation/shared/widgets/photo_viewer.dart';
+import 'package:enpix/presentation/shared/widgets/selection_action_bar.dart';
 import 'package:enpix/presentation/shared/widgets/backup_progress_widgets.dart';
 import 'package:enpix/presentation/shared/utils/format_duration.dart';
 import 'package:enpix/services/thumbnail/thumbnail_loader.dart';
@@ -390,7 +391,7 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
       body: _buildBody(),
       floatingActionButton: _buildFab(),
       bottomNavigationBar: _selectionMode && _selected.isNotEmpty
-          ? _SelectionActionBar(
+          ? SelectionActionBar(
               count: _selected.length,
               onUpload: _uploadSelected,
               onCancel: _exitSelection,
@@ -487,46 +488,6 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
       backgroundColor: context.colors.brandBlue,
       child:
           const Icon(Icons.cloud_upload_rounded, color: Colors.white, size: 24),
-    );
-  }
-}
-
-/// Bottom action bar shown in selection mode: upload selected / cancel.
-class _SelectionActionBar extends StatelessWidget {
-  final int count;
-  final Future<void> Function() onUpload;
-  final VoidCallback onCancel;
-
-  const _SelectionActionBar({
-    required this.count,
-    required this.onUpload,
-    required this.onCancel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Container(
-        decoration: BoxDecoration(
-          color: context.colors.backgroundSecondary,
-          border: Border(
-            top: BorderSide(color: context.colors.separator, width: 0.5),
-          ),
-        ),
-        padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
-        child: Row(
-          children: [
-            TextButton(onPressed: onCancel, child: const Text('取消')),
-            const Spacer(),
-            FilledButton.icon(
-              onPressed: onUpload,
-              icon: const Icon(Icons.cloud_upload_rounded, size: 18),
-              label: Text('上传所选 ($count)'),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
