@@ -48,7 +48,8 @@ class _EnpixSkeletonState extends State<EnpixSkeleton>
           width: widget.width,
           height: widget.height,
           decoration: BoxDecoration(
-            color: context.colors.fillPrimary.withAlpha((opacity * 255).toInt()),
+            color:
+                context.colors.fillPrimary.withAlpha((opacity * 255).toInt()),
             borderRadius: BorderRadius.circular(widget.borderRadius),
           ),
         );

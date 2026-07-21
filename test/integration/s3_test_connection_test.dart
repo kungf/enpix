@@ -8,7 +8,8 @@ import 'dart:io';
 import 'package:enpix/domain/entities/storage_config.dart';
 import 'package:enpix/services/storage/s3_service.dart';
 
-final _endpoint = Platform.environment['S3_ENDPOINT'] ?? 'http://localhost:9000';
+final _endpoint =
+    Platform.environment['S3_ENDPOINT'] ?? 'http://localhost:9000';
 final _bucket = Platform.environment['S3_BUCKET'] ?? 'test';
 final _ak = Platform.environment['S3_ACCESS_KEY'] ?? '';
 final _sk = Platform.environment['S3_SECRET_KEY'] ?? '';
@@ -16,8 +17,15 @@ final _region = Platform.environment['S3_REGION'] ?? 'default';
 
 void main() async {
   int passed = 0, failed = 0;
-  void ok(String m) { passed++; print('  ✅ $m'); }
-  void fail(String m) { failed++; print('  ❌ $m'); }
+  void ok(String m) {
+    passed++;
+    print('  ✅ $m');
+  }
+
+  void fail(String m) {
+    failed++;
+    print('  ❌ $m');
+  }
 
   print('═══ S3 testConnection() Test ═══');
   print('Endpoint: $_endpoint');

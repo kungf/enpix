@@ -12,19 +12,37 @@ class ProgressHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(children: [
-    Container(width: 40, height: 40,
-      decoration: BoxDecoration(
-        color: (task.isRunning ? context.colors.brandBlue : context.colors.brandGreen).withAlpha(25),
-        borderRadius: BorderRadius.circular(AppRadius.sm)),
-      child: Icon(task.isRunning ? Icons.cloud_upload_rounded : Icons.check_circle_rounded,
-          color: task.isRunning ? context.colors.brandBlue : context.colors.brandGreen, size: 24)),
-    const SizedBox(width: AppSpacing.md),
-    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(task.isRunning ? '正在备份...' : '备份完成',
-          style:  TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: context.colors.labelPrimary)),
-      Text(task.progressText, style:  TextStyle(fontSize: 13, color: context.colors.labelSecondary)),
-    ])),
-  ]);
+        Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+                color: (task.isRunning
+                        ? context.colors.brandBlue
+                        : context.colors.brandGreen)
+                    .withAlpha(25),
+                borderRadius: BorderRadius.circular(AppRadius.sm)),
+            child: Icon(
+                task.isRunning
+                    ? Icons.cloud_upload_rounded
+                    : Icons.check_circle_rounded,
+                color: task.isRunning
+                    ? context.colors.brandBlue
+                    : context.colors.brandGreen,
+                size: 24)),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(task.isRunning ? '正在备份...' : '备份完成',
+              style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: context.colors.labelPrimary)),
+          Text(task.progressText,
+              style: TextStyle(
+                  fontSize: 13, color: context.colors.labelSecondary)),
+        ])),
+      ]);
 }
 
 /// Bandwidth and throughput info box.
@@ -34,18 +52,26 @@ class BandwidthInfo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(AppSpacing.md),
-    decoration: BoxDecoration(color: context.colors.fillSecondary, borderRadius: BorderRadius.circular(AppRadius.sm)),
-    child: Row(children: [
-       Icon(Icons.speed_rounded, size: 16, color: context.colors.labelSecondary),
-      const SizedBox(width: AppSpacing.sm),
-      Text(task.bandwidthText, style:  TextStyle(fontSize: 13, color: context.colors.labelSecondary)),
-      const SizedBox(width: AppSpacing.lg),
-       Icon(Icons.upload_file_rounded, size: 16, color: context.colors.labelSecondary),
-      const SizedBox(width: AppSpacing.sm),
-      Text(task.throughputText, style:  TextStyle(fontSize: 13, color: context.colors.labelSecondary)),
-    ]),
-  );
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+            color: context.colors.fillSecondary,
+            borderRadius: BorderRadius.circular(AppRadius.sm)),
+        child: Row(children: [
+          Icon(Icons.speed_rounded,
+              size: 16, color: context.colors.labelSecondary),
+          const SizedBox(width: AppSpacing.sm),
+          Text(task.bandwidthText,
+              style: TextStyle(
+                  fontSize: 13, color: context.colors.labelSecondary)),
+          const SizedBox(width: AppSpacing.lg),
+          Icon(Icons.upload_file_rounded,
+              size: 16, color: context.colors.labelSecondary),
+          const SizedBox(width: AppSpacing.sm),
+          Text(task.throughputText,
+              style: TextStyle(
+                  fontSize: 13, color: context.colors.labelSecondary)),
+        ]),
+      );
 }
 
 /// Progress action row — error badge + stop button.
@@ -56,19 +82,30 @@ class ProgressActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(children: [
-    if (task.failedCount > 0)
-      Container(padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
-        decoration: BoxDecoration(color: context.colors.brandRed.withAlpha(25), borderRadius: BorderRadius.circular(AppRadius.sm)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-           Icon(Icons.error_outline_rounded, size: 14, color: context.colors.brandRed),
-          const SizedBox(width: AppSpacing.xs),
-          Text('${task.failedCount} 失败', style:  TextStyle(fontSize: 13, color: context.colors.brandRed)),
-        ])),
-    const Spacer(),
-    TextButton.icon(
-      onPressed: () { manager.stop(); Navigator.pop(context); },
-      icon: const Icon(Icons.stop_rounded, size: 18), label: const Text('停止')),
-  ]);
+        if (task.failedCount > 0)
+          Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+              decoration: BoxDecoration(
+                  color: context.colors.brandRed.withAlpha(25),
+                  borderRadius: BorderRadius.circular(AppRadius.sm)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.error_outline_rounded,
+                    size: 14, color: context.colors.brandRed),
+                const SizedBox(width: AppSpacing.xs),
+                Text('${task.failedCount} 失败',
+                    style: TextStyle(
+                        fontSize: 13, color: context.colors.brandRed)),
+              ])),
+        const Spacer(),
+        TextButton.icon(
+            onPressed: () {
+              manager.stop();
+              Navigator.pop(context);
+            },
+            icon: const Icon(Icons.stop_rounded, size: 18),
+            label: const Text('停止')),
+      ]);
 }
 
 /// Expandable error list with report button.
@@ -86,34 +123,59 @@ class _ErrorListState extends State<ErrorList> {
 
   @override
   Widget build(BuildContext context) => Column(children: [
-    InkWell(onTap: () => setState(() => _expanded = !_expanded), child: Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-      child: Row(children: [
-         Icon(Icons.error_outline_rounded, size: 16, color: context.colors.brandRed),
-        const SizedBox(width: AppSpacing.sm),
-        Text('查看失败详情 (${widget.errors.length})',
-            style:  TextStyle(fontSize: 13, color: context.colors.brandRed)),
-        const Spacer(),
-        Icon(_expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
-            size: 18, color: context.colors.labelSecondary),
-      ]),
-    )),
-    if (_expanded) ...[
-      Container(constraints: const BoxConstraints(maxHeight: 200),
-        decoration: BoxDecoration(color: context.colors.brandRed.withAlpha(15), borderRadius: BorderRadius.circular(AppRadius.sm)),
-        child: ListView.separated(shrinkWrap: true, padding: const EdgeInsets.all(AppSpacing.md),
-          itemCount: widget.errors.length, separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
-          itemBuilder: (_, i) => Text(widget.errors[i],
-              style:  TextStyle(fontSize: 12, color: context.colors.brandRed)))),
-      const SizedBox(height: AppSpacing.sm),
-      Align(alignment: Alignment.centerRight,
-        child: TextButton.icon(
-          onPressed: _reporting ? null : () async {
-            setState(() => _reporting = true);
-            try { await widget.onReport?.call(); } finally { if (mounted) setState(() => _reporting = false); }
-          },
-          icon: _reporting ? const EnpixCircularProgress(size: 14) : const Icon(Icons.bug_report_outlined, size: 16),
-          label: Text(_reporting ? '上传中...' : 'Report'))),
-    ],
-  ]);
+        InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+              child: Row(children: [
+                Icon(Icons.error_outline_rounded,
+                    size: 16, color: context.colors.brandRed),
+                const SizedBox(width: AppSpacing.sm),
+                Text('查看失败详情 (${widget.errors.length})',
+                    style: TextStyle(
+                        fontSize: 13, color: context.colors.brandRed)),
+                const Spacer(),
+                Icon(
+                    _expanded
+                        ? Icons.expand_less_rounded
+                        : Icons.expand_more_rounded,
+                    size: 18,
+                    color: context.colors.labelSecondary),
+              ]),
+            )),
+        if (_expanded) ...[
+          Container(
+              constraints: const BoxConstraints(maxHeight: 200),
+              decoration: BoxDecoration(
+                  color: context.colors.brandRed.withAlpha(15),
+                  borderRadius: BorderRadius.circular(AppRadius.sm)),
+              child: ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  itemCount: widget.errors.length,
+                  separatorBuilder: (_, __) =>
+                      const SizedBox(height: AppSpacing.xs),
+                  itemBuilder: (_, i) => Text(widget.errors[i],
+                      style: TextStyle(
+                          fontSize: 12, color: context.colors.brandRed)))),
+          const SizedBox(height: AppSpacing.sm),
+          Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                  onPressed: _reporting
+                      ? null
+                      : () async {
+                          setState(() => _reporting = true);
+                          try {
+                            await widget.onReport?.call();
+                          } finally {
+                            if (mounted) setState(() => _reporting = false);
+                          }
+                        },
+                  icon: _reporting
+                      ? const EnpixCircularProgress(size: 14)
+                      : const Icon(Icons.bug_report_outlined, size: 16),
+                  label: Text(_reporting ? '上传中...' : 'Report'))),
+        ],
+      ]);
 }

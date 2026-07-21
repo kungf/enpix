@@ -39,7 +39,8 @@ void main() {
     final query = canonicalQuery(path);
 
     // Must match single-encoded sorted query
-    expect(query, 'list-type=2&max-keys=1000&prefix=fp123%2Fdevice456%2Fthumbs%2F');
+    expect(query,
+        'list-type=2&max-keys=1000&prefix=fp123%2Fdevice456%2Fthumbs%2F');
     // CRITICAL: must NOT have triple-digit percent encoding (%25 → %252 = double)
     expect(query, isNot(contains('%252')));
   });

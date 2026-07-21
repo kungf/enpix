@@ -90,7 +90,8 @@ void main() {
     test('deriveKekWithParams produces 32 bytes', () async {
       final salt = crypto.generateSalt();
       final kek = await crypto.deriveKekWithParams(
-        'test-password', salt,
+        'test-password',
+        salt,
         memory: 65536,
         iterations: 3,
       );
@@ -98,13 +99,16 @@ void main() {
       expect(kek.length, equals(32));
     });
 
-    test('deriveKek and deriveKekWithParams with same params produce same result', () async {
+    test(
+        'deriveKek and deriveKekWithParams with same params produce same result',
+        () async {
       final salt = crypto.generateSalt();
       final passphrase = 'same-password';
 
       final kek1 = await crypto.deriveKek(passphrase, salt);
       final kek2 = await crypto.deriveKekWithParams(
-        passphrase, salt,
+        passphrase,
+        salt,
         memory: 65536,
         iterations: 3,
       );

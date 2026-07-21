@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:video_player/video_player.dart';
@@ -39,12 +41,12 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       }
       final controller = VideoPlayerController.file(file);
       await controller.initialize();
-      controller.setLooping(true);
+      unawaited(controller.setLooping(true));
       controller.addListener(_onChanged);
       _controller = controller;
       if (mounted) {
         setState(() => _initialized = true);
-        controller.play();
+        unawaited(controller.play());
       }
     } catch (_) {
       if (mounted) setState(() => _error = true);
@@ -127,7 +129,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
           Container(
             color: Colors.black54,
             padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm,
+            ),
             child: Row(
               children: [
                 IconButton(

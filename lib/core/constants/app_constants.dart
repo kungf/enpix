@@ -13,5 +13,6 @@ class AppConstants {
   static const int s3MultipartPartSizeBytes = 8 * 1024 * 1024;
 
   /// True in integration test mode, skips photo permission dialog.
-  static const bool isIntegrationTest = bool.fromEnvironment('INTEGRATION_TEST');
+  static const bool isIntegrationTest =
+      bool.fromEnvironment('INTEGRATION_TEST');
 }

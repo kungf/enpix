@@ -5,5 +5,11 @@ class StorageConfig {
   final String accessKey;
   final String secretKey;
   final int updatedAt;
-  const StorageConfig({required this.endpointUrl, required this.bucketName, required this.region, required this.accessKey, required this.secretKey, required this.updatedAt});
+  const StorageConfig(
+      {required this.endpointUrl,
+      required this.bucketName,
+      required this.region,
+      required this.accessKey,
+      required this.secretKey,
+      required this.updatedAt});
 }

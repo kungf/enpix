@@ -48,7 +48,6 @@ final backupManagerProvider =
   return BackupManager(
     UploadService(
       ref.watch(cryptoServiceProvider),
-      ref.watch(credentialServiceProvider),
       ref.watch(s3ServiceProvider),
     ),
     ref.watch(uploadTrackerProvider),

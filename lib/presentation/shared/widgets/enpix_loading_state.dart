@@ -19,7 +19,8 @@ class EnpixLoadingState extends StatelessWidget {
             height: 32,
             child: CircularProgressIndicator(
               strokeWidth: 3,
-              valueColor: AlwaysStoppedAnimation<Color>(context.colors.brandBlue),
+              valueColor:
+                  AlwaysStoppedAnimation<Color>(context.colors.brandBlue),
             ),
           ),
           if (message != null) ...[

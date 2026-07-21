@@ -38,7 +38,8 @@ class RecoveryService {
 
     // 3. Upload to S3
     final s3Key = _makeRecoveryKey(kekFingerprint);
-    await _s3.putObject(s3Key, wrappedMk, contentType: 'application/octet-stream');
+    await _s3.putObject(s3Key, wrappedMk,
+        contentType: 'application/octet-stream');
 
     _log.info('Recovery key uploaded to S3');
 

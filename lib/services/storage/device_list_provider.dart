@@ -10,8 +10,7 @@ import 's3_service.dart';
 typedef DeviceRegistry = ({List<DeviceInfo> devices, String currentDeviceId});
 
 /// Empty registry value used when S3 is not configured.
-const emptyDeviceRegistry =
-    (devices: <DeviceInfo>[], currentDeviceId: '');
+const emptyDeviceRegistry = (devices: <DeviceInfo>[], currentDeviceId: '');
 
 /// Lists all devices registered under this KEK fingerprint and marks the
 /// current device. autoDispose + manual invalidate on refresh.

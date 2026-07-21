@@ -43,7 +43,6 @@ void main() {
     print('[E2E] connection test: $result');
   }, timeout: const Timeout(Duration(seconds: 15)));
 
-
   group('listObjects', () {
     test('with fingerprint prefix', () async {
       final objects = await s3.listObjects('e2e-test-fp/');
@@ -52,18 +51,21 @@ void main() {
 
     test('with device prefix containing /', () async {
       final objects = await s3.listObjects('e2e-test-fp/e2e-test-device/');
-      print('[E2E] listed ${objects.length} objects under e2e-test-fp/e2e-test-device/');
+      print(
+          '[E2E] listed ${objects.length} objects under e2e-test-fp/e2e-test-device/');
     });
 
     test('returns empty for non-existent prefix', () async {
-      final n = '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(99999)}';
+      final n =
+          '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(99999)}';
       final objects = await s3.listObjects('e2e-test-fp/nonexistent_$n/');
       expect(objects, isEmpty);
     });
   });
 
   group('put + get + delete', () {
-    test('round-trip — verifies PUT, GET, objectExists, DELETE signatures', () async {
+    test('round-trip — verifies PUT, GET, objectExists, DELETE signatures',
+        () async {
       final data = Uint8List.fromList([1, 2, 3, 4, 5]);
       final key = 'e2e-test-fp/e2e-test-device/files/20250712/e2e_rt.enc';
 
@@ -105,7 +107,8 @@ void main() {
     });
 
     test('long prefix with multiple / separators', () async {
-      final objects = await s3.listObjects('e2e-test-fp/e2e-test-device/files/20250712/');
+      final objects =
+          await s3.listObjects('e2e-test-fp/e2e-test-device/files/20250712/');
       print('[E2E] listed ${objects.length} objects');
     });
   });
@@ -121,7 +124,8 @@ void main() {
     });
 
     test('exact failing prefix — catch and print raw response', () async {
-      final prefix = 'yJrrWkKmkKuE/00b74fb5-b574-4f6f-83e5-d2da08d67c2a/thumbs/';
+      final prefix =
+          'yJrrWkKmkKuE/00b74fb5-b574-4f6f-83e5-d2da08d67c2a/thumbs/';
       print('[E2E] reproducing device error: $prefix');
       try {
         final objects = await s3.listObjects(prefix);

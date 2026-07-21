@@ -66,7 +66,9 @@ class ThumbnailLoader<K> {
       result = null;
     }
     _running--;
-    _inFlight.remove(job.key);
+    // The removed map value is an in-flight Future we intentionally do not
+    // await (it is completed via [job.completer]); discard it explicitly.
+    unawaited(_inFlight.remove(job.key));
     if (result != null) {
       _cache[job.key] = result;
       while (_cache.length > _maxCache) {

@@ -27,13 +27,18 @@ class _SetupPasswordDialogState extends State<_SetupPasswordDialog> {
   String? _errorText;
 
   @override
-  void dispose() { _pwCtrl.dispose(); _confirmCtrl.dispose(); super.dispose(); }
+  void dispose() {
+    _pwCtrl.dispose();
+    _confirmCtrl.dispose();
+    super.dispose();
+  }
 
   String? _validate() {
     final pw = _pwCtrl.text;
     if (pw.isEmpty) return null;
     if (pw.length < 8) return '密码至少需要 8 位';
-    if (pw != _confirmCtrl.text && _confirmCtrl.text.isNotEmpty) return '两次输入的密码不一致';
+    if (pw != _confirmCtrl.text && _confirmCtrl.text.isNotEmpty)
+      return '两次输入的密码不一致';
     return null;
   }
 
@@ -60,11 +65,19 @@ class _SetupPasswordDialogState extends State<_SetupPasswordDialog> {
     };
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       SizedBox(height: AppSpacing.sm),
-      ClipRRect(borderRadius: BorderRadius.circular(2),
-        child: LinearProgressIndicator(value: w, minHeight: 4, backgroundColor: context.colors.fillPrimary, color: color)),
-      if (label.isNotEmpty) Padding(
-        padding: EdgeInsets.only(top: 2),
-        child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w500))),
+      ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: LinearProgressIndicator(
+              value: w,
+              minHeight: 4,
+              backgroundColor: context.colors.fillPrimary,
+              color: color)),
+      if (label.isNotEmpty)
+        Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Text(label,
+                style: TextStyle(
+                    color: color, fontSize: 11, fontWeight: FontWeight.w500))),
     ]);
   }
 
@@ -73,58 +86,96 @@ class _SetupPasswordDialogState extends State<_SetupPasswordDialog> {
     return AlertDialog(
       title: Text('设置加密密码'),
       content: SingleChildScrollView(
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(
-            padding: EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color: context.colors.brandOrange.withAlpha(20), borderRadius: BorderRadius.circular(AppRadius.sm),
-              border: Border.all(color: context.colors.brandOrange.withAlpha(60))),
-            child: Row(children: [
-              Icon(Icons.shield_rounded, size: 20, color: context.colors.brandOrange),
-              SizedBox(width: AppSpacing.sm),
-              Expanded(child: Text('端到端加密', style: TextStyle(fontWeight: FontWeight.w600, color: context.colors.brandOrange))),
+        child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                    color: context.colors.brandOrange.withAlpha(20),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    border: Border.all(
+                        color: context.colors.brandOrange.withAlpha(60))),
+                child: Row(children: [
+                  Icon(Icons.shield_rounded,
+                      size: 20, color: context.colors.brandOrange),
+                  SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                      child: Text('端到端加密',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: context.colors.brandOrange))),
+                ]),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              const Text('你的照片会在上传前加密，服务器无法查看内容。',
+                  style: TextStyle(fontSize: 13)),
+              const SizedBox(height: AppSpacing.sm),
+              Text('⚠️ 请牢记此密码。忘记密码将无法解密照片，且无法恢复。',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: context.colors.brandRed)),
+              const SizedBox(height: AppSpacing.lg),
+              TextField(
+                controller: _pwCtrl,
+                obscureText: _obscurePw,
+                decoration: InputDecoration(
+                    labelText: '密码',
+                    hintText: '建议大小写字母+数字+符号',
+                    suffixIcon: IconButton(
+                        icon: Icon(_obscurePw
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined),
+                        onPressed: () =>
+                            setState(() => _obscurePw = !_obscurePw))),
+                onChanged: (_) => setState(() {
+                  _strength = _calcStrength(_pwCtrl.text);
+                  _errorText = _validate();
+                }),
+              ),
+              _buildStrengthBar(),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: _confirmCtrl,
+                obscureText: _obscureConfirm,
+                decoration: InputDecoration(
+                    labelText: '确认密码',
+                    suffixIcon: IconButton(
+                        icon: Icon(_obscureConfirm
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined),
+                        onPressed: () => setState(
+                            () => _obscureConfirm = !_obscureConfirm))),
+                onChanged: (_) => setState(() => _errorText = _validate()),
+              ),
+              if (_errorText != null)
+                Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.sm),
+                    child: Text(_errorText!,
+                        style: TextStyle(
+                            color: context.colors.brandRed, fontSize: 12))),
             ]),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          const Text('你的照片会在上传前加密，服务器无法查看内容。', style: TextStyle(fontSize: 13)),
-          const SizedBox(height: AppSpacing.sm),
-          Text('⚠️ 请牢记此密码。忘记密码将无法解密照片，且无法恢复。',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: context.colors.brandRed)),
-          const SizedBox(height: AppSpacing.lg),
-          TextField(
-            controller: _pwCtrl, obscureText: _obscurePw,
-            decoration: InputDecoration(
-              labelText: '密码', hintText: '建议大小写字母+数字+符号',
-              suffixIcon: IconButton(
-                icon: Icon(_obscurePw ? Icons.visibility_off_outlined : Icons.visibility_outlined),
-                onPressed: () => setState(() => _obscurePw = !_obscurePw))),
-            onChanged: (_) => setState(() { _strength = _calcStrength(_pwCtrl.text); _errorText = _validate(); }),
-          ),
-          _buildStrengthBar(),
-          const SizedBox(height: AppSpacing.md),
-          TextField(
-            controller: _confirmCtrl, obscureText: _obscureConfirm,
-            decoration: InputDecoration(
-              labelText: '确认密码',
-              suffixIcon: IconButton(
-                icon: Icon(_obscureConfirm ? Icons.visibility_off_outlined : Icons.visibility_outlined),
-                onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm))),
-            onChanged: (_) => setState(() => _errorText = _validate()),
-          ),
-          if (_errorText != null) Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.sm),
-            child: Text(_errorText!, style:  TextStyle(color: context.colors.brandRed, fontSize: 12))),
-        ]),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
-        FilledButton(onPressed: () {
-          final pw = _pwCtrl.text;
-          final err = _validate();
-          if (err != null) { setState(() => _errorText = err); return; }
-          if (pw.isEmpty) { setState(() => _errorText = '请输入密码'); return; }
-          Navigator.pop(context, pw);
-        }, child: const Text('设置')),
+        TextButton(
+            onPressed: () => Navigator.pop(context), child: const Text('取消')),
+        FilledButton(
+            onPressed: () {
+              final pw = _pwCtrl.text;
+              final err = _validate();
+              if (err != null) {
+                setState(() => _errorText = err);
+                return;
+              }
+              if (pw.isEmpty) {
+                setState(() => _errorText = '请输入密码');
+                return;
+              }
+              Navigator.pop(context, pw);
+            },
+            child: const Text('设置')),
       ],
     );
   }

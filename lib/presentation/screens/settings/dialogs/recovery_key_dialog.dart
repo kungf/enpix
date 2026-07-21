@@ -37,7 +37,8 @@ class _RecoveryKeyDialogState extends State<_RecoveryKeyDialog> {
             Text(
               '请用纸笔抄写以下 24 个单词，并妥善保管。\n\n'
               '如果你忘记密码，这是恢复数据的唯一方式。',
-              style: TextStyle(fontSize: 14, color: context.colors.labelSecondary),
+              style:
+                  TextStyle(fontSize: 14, color: context.colors.labelSecondary),
             ),
             const SizedBox(height: AppSpacing.lg),
             Container(
@@ -51,7 +52,8 @@ class _RecoveryKeyDialogState extends State<_RecoveryKeyDialog> {
                 runSpacing: AppSpacing.sm,
                 children: List.generate(widget.words.length, (i) {
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: context.colors.backgroundPrimary,
                       borderRadius: BorderRadius.circular(4),
@@ -74,7 +76,8 @@ class _RecoveryKeyDialogState extends State<_RecoveryKeyDialog> {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () {
-                      Clipboard.setData(ClipboardData(text: widget.words.join(' ')));
+                      Clipboard.setData(
+                          ClipboardData(text: widget.words.join(' ')));
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('已复制到剪贴板')),
                       );
@@ -160,7 +163,8 @@ class _RecoveryInputDialogState extends State<_RecoveryInputDialog> {
           children: [
             Text(
               '输入之前备份的 24 个恢复密钥单词，以恢复对加密数据的访问。',
-              style: TextStyle(fontSize: 14, color: context.colors.labelSecondary),
+              style:
+                  TextStyle(fontSize: 14, color: context.colors.labelSecondary),
             ),
             const SizedBox(height: AppSpacing.lg),
             TextField(

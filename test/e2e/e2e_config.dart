@@ -33,7 +33,8 @@ class E2EConfig {
           if (trimmed.isEmpty || trimmed.startsWith('#')) continue;
           final eqIdx = trimmed.indexOf('=');
           if (eqIdx >= 0) {
-            map[trimmed.substring(0, eqIdx).trim()] = trimmed.substring(eqIdx + 1).trim();
+            map[trimmed.substring(0, eqIdx).trim()] =
+                trimmed.substring(eqIdx + 1).trim();
           }
         }
         return E2EConfig(

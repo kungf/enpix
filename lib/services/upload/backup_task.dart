@@ -30,13 +30,11 @@ class BackupTask {
       status == BackupStatus.completed || status == BackupStatus.stopped;
 
   int get processedCount => completedCount + failedCount + skippedCount;
-  double get progress =>
-      totalCount > 0 ? processedCount / totalCount : 0.0;
+  double get progress => totalCount > 0 ? processedCount / totalCount : 0.0;
 
   String get progressText => '$processedCount / $totalCount';
 
-  Duration get elapsed =>
-      (completedAt ?? DateTime.now()).difference(startedAt);
+  Duration get elapsed => (completedAt ?? DateTime.now()).difference(startedAt);
 
   /// Throughput in bytes per second.
   double get bytesPerSecond =>
@@ -81,8 +79,7 @@ class BackupTask {
   }
 
   @override
-  String toString() =>
-      'BackupTask($status, $processedCount/$totalCount, '
+  String toString() => 'BackupTask($status, $processedCount/$totalCount, '
       'ok=$completedCount skip=$skippedCount fail=$failedCount)';
 }
 

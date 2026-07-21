@@ -101,11 +101,13 @@ class CredentialService {
 
     // Probe adaptive Argon2id params
     final params = await _crypto.probeArgon2Params(passphrase, salt);
-    _log.info('Adaptive Argon2id: memory=${params.memory} KiB, ops=${params.ops}');
+    _log.info(
+        'Adaptive Argon2id: memory=${params.memory} KiB, ops=${params.ops}');
 
     // Derive KEK with probed params
     final kek = await _crypto.deriveKekWithParams(
-      passphrase, salt,
+      passphrase,
+      salt,
       memory: params.memory,
       iterations: params.ops,
     );
@@ -120,15 +122,19 @@ class CredentialService {
     final wrappedMk = await _crypto.wrapKey(masterKey, kek);
 
     // Store to Keychain
-    await _storage.write(key: _kekSaltKey, value: CryptoService.b64Encode(salt));
+    await _storage.write(
+        key: _kekSaltKey, value: CryptoService.b64Encode(salt));
     await _storage.write(key: _kekKey, value: CryptoService.b64Encode(kek));
     await _storage.write(key: _kekFingerprintKey, value: fingerprint);
     await _storage.write(key: _hasPassphraseKey, value: 'true');
-    await _storage.write(key: _wrappedMasterKeyKey, value: CryptoService.b64Encode(wrappedMk));
-    await _storage.write(key: _argon2MemoryKey, value: params.memory.toString());
+    await _storage.write(
+        key: _wrappedMasterKeyKey, value: CryptoService.b64Encode(wrappedMk));
+    await _storage.write(
+        key: _argon2MemoryKey, value: params.memory.toString());
     await _storage.write(key: _argon2OpsKey, value: params.ops.toString());
 
-    _log.info('Passphrase setup complete (adaptive params, Master Key generated)');
+    _log.info(
+        'Passphrase setup complete (adaptive params, Master Key generated)');
     return kek;
   }
 
@@ -153,7 +159,8 @@ class CredentialService {
     Uint8List kek;
     if (memStr != null && opsStr != null) {
       kek = await _crypto.deriveKekWithParams(
-        passphrase, salt,
+        passphrase,
+        salt,
         memory: int.parse(memStr),
         iterations: int.parse(opsStr),
       );
@@ -233,7 +240,8 @@ class CredentialService {
 
   /// Change the passphrase: re-derive KEK with new password, re-wrap the
   /// existing Master Key. Master Key itself never changes.
-  Future<void> changePassphrase(String oldPassphrase, String newPassphrase) async {
+  Future<void> changePassphrase(
+      String oldPassphrase, String newPassphrase) async {
     _log.info('Changing passphrase...');
 
     // Read existing S3 credentials before ending the old session.
@@ -256,7 +264,8 @@ class CredentialService {
     final salt = _crypto.generateSalt();
     final params = await _crypto.probeArgon2Params(newPassphrase, salt);
     final newKek = await _crypto.deriveKekWithParams(
-      newPassphrase, salt,
+      newPassphrase,
+      salt,
       memory: params.memory,
       iterations: params.ops,
     );
@@ -269,13 +278,16 @@ class CredentialService {
     }
 
     // Store updated Keychain entries.
-    await _storage.write(key: _kekSaltKey, value: CryptoService.b64Encode(salt));
+    await _storage.write(
+        key: _kekSaltKey, value: CryptoService.b64Encode(salt));
     await _storage.write(key: _kekKey, value: CryptoService.b64Encode(newKek));
     await _storage.write(key: _kekFingerprintKey, value: fingerprint);
-    await _storage.write(key: _argon2MemoryKey, value: params.memory.toString());
+    await _storage.write(
+        key: _argon2MemoryKey, value: params.memory.toString());
     await _storage.write(key: _argon2OpsKey, value: params.ops.toString());
     if (wrappedMk != null) {
-      await _storage.write(key: _wrappedMasterKeyKey, value: CryptoService.b64Encode(wrappedMk));
+      await _storage.write(
+          key: _wrappedMasterKeyKey, value: CryptoService.b64Encode(wrappedMk));
     }
 
     // Re-save S3 credentials.
@@ -331,14 +343,11 @@ class CredentialService {
       await _storage.write(key: _s3RegionKey, value: region);
 
   /// Load S3 connection details.
-  Future<String?> getS3Endpoint() async =>
-      _storage.read(key: _s3EndpointKey);
+  Future<String?> getS3Endpoint() async => _storage.read(key: _s3EndpointKey);
 
-  Future<String?> getS3Bucket() async =>
-      _storage.read(key: _s3BucketKey);
+  Future<String?> getS3Bucket() async => _storage.read(key: _s3BucketKey);
 
-  Future<String?> getS3Region() async =>
-      _storage.read(key: _s3RegionKey);
+  Future<String?> getS3Region() async => _storage.read(key: _s3RegionKey);
 
   /// Delete stored S3 credentials.
   Future<void> deleteS3Credentials() async {

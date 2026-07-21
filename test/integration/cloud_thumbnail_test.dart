@@ -18,7 +18,8 @@ import 'package:dio/dio.dart';
 import 'package:image/image.dart' as img;
 import 'package:xml/xml.dart';
 
-final _endpoint = Platform.environment['S3_ENDPOINT'] ?? 'http://localhost:9000';
+final _endpoint =
+    Platform.environment['S3_ENDPOINT'] ?? 'http://localhost:9000';
 final _bucket = Platform.environment['S3_BUCKET'] ?? 'test';
 final _ak = Platform.environment['S3_ACCESS_KEY'] ?? '';
 final _sk = Platform.environment['S3_SECRET_KEY'] ?? '';
@@ -32,7 +33,8 @@ Uint8List rnd(int n) {
   return r;
 }
 
-String sign(String method, String fullPath, Map<String, String> hdrs, String ph) {
+String sign(
+    String method, String fullPath, Map<String, String> hdrs, String ph) {
   final now = DateTime.now().toUtc();
   final amz =
       '${now.year}${p2(now.month)}${p2(now.day)}T${p2(now.hour)}${p2(now.minute)}${p2(now.second)}Z';
@@ -51,7 +53,9 @@ String sign(String method, String fullPath, Map<String, String> hdrs, String ph)
   final queryParams = uri.queryParametersAll.entries.toList()
     ..sort((a, b) => a.key.compareTo(b.key));
   final canonicalQuery = queryParams
-      .map((e) => e.value.map((v) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(v)}').join('&'))
+      .map((e) => e.value
+          .map((v) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(v)}')
+          .join('&'))
       .join('&');
 
   final h = <String, String>{
@@ -79,13 +83,11 @@ String sign(String method, String fullPath, Map<String, String> hdrs, String ph)
     scope,
     sha256.convert(utf8.encode(cr)).toString(),
   ].join('\n');
-  final kDate = Hmac(sha256, utf8.encode('AWS4$_sk'))
-      .convert(utf8.encode(date))
-      .bytes;
+  final kDate =
+      Hmac(sha256, utf8.encode('AWS4$_sk')).convert(utf8.encode(date)).bytes;
   final kReg = Hmac(sha256, kDate).convert(utf8.encode(_region)).bytes;
   final kSvc = Hmac(sha256, kReg).convert(utf8.encode('s3')).bytes;
-  final signKey =
-      Hmac(sha256, kSvc).convert(utf8.encode('aws4_request')).bytes;
+  final signKey = Hmac(sha256, kSvc).convert(utf8.encode('aws4_request')).bytes;
   return 'AWS4-HMAC-SHA256 Credential=$_ak/$scope, SignedHeaders=$signed, Signature=${Hmac(sha256, signKey).convert(utf8.encode(sts)).toString()}';
 }
 
@@ -125,8 +127,8 @@ void main() async {
 
   final blake2b = Blake2b(hashLengthInBytes: 32);
   final aead = Xchacha20.poly1305Aead();
-  final argon2id = Argon2id(
-      parallelism: 4, memory: 65536, iterations: 3, hashLength: 32);
+  final argon2id =
+      Argon2id(parallelism: 4, memory: 65536, iterations: 3, hashLength: 32);
 
   Future<Uint8List> deriveKek(String pw, Uint8List s) async {
     final k = await argon2id.deriveKey(
@@ -151,9 +153,9 @@ void main() async {
       Uint8List ctMac, Uint8List nonce, Uint8List key) async {
     final ct = ctMac.sublist(0, ctMac.length - 16);
     final mac = Mac(ctMac.sublist(ctMac.length - 16));
-    return Uint8List.fromList(
-        await aead.decrypt(SecretBox(ct, nonce: nonce, mac: mac),
-            secretKey: SecretKey(key)));
+    return Uint8List.fromList(await aead.decrypt(
+        SecretBox(ct, nonce: nonce, mac: mac),
+        secretKey: SecretKey(key)));
   }
 
   final dio = Dio(BaseOptions(
@@ -174,8 +176,7 @@ void main() async {
     final r = await dio.put('/$_bucket/$key',
         data: Stream.value(data),
         options: Options(
-            headers:
-                auth('PUT', '/$_bucket/$key', extra: extra, ph: ph)));
+            headers: auth('PUT', '/$_bucket/$key', extra: extra, ph: ph)));
     if (r.statusCode != 200) throw Exception('PUT ${r.statusCode}');
   }
 
@@ -200,12 +201,11 @@ void main() async {
   }
 
   Future<List<String>> s3List(String prefix) async {
-    final fullPath = '/$_bucket?list-type=2&prefix=${Uri.encodeComponent(prefix)}&max-keys=100';
-    final r = await dio.get(
-        fullPath,
-        options: Options(
-            headers:
-                auth('GET', fullPath, ph: 'UNSIGNED-PAYLOAD')));
+    final fullPath =
+        '/$_bucket?list-type=2&prefix=${Uri.encodeComponent(prefix)}&max-keys=100';
+    final r = await dio.get(fullPath,
+        options:
+            Options(headers: auth('GET', fullPath, ph: 'UNSIGNED-PAYLOAD')));
     final body = r.data is String ? r.data as String : r.data.toString();
     final doc = XmlDocument.parse(body);
     final keys = <String>[];
@@ -258,7 +258,8 @@ void main() async {
   try {
     // Encrypt original
     final origDek = rnd(32);
-    final (encryptedOrig, origNonce) = await encryptData(originalJpeg!, origDek);
+    final (encryptedOrig, origNonce) =
+        await encryptData(originalJpeg!, origDek);
     final (wrappedOrigDek, wrapNonce1) = await encryptData(origDek, kek);
 
     await s3Put(fileKey, encryptedOrig, meta: {
@@ -270,7 +271,8 @@ void main() async {
 
     // Encrypt thumbnail (separate DEK)
     final thumbDek = rnd(32);
-    final (encryptedThumb, thumbNonce) = await encryptData(thumbJpeg!, thumbDek);
+    final (encryptedThumb, thumbNonce) =
+        await encryptData(thumbJpeg!, thumbDek);
     final (wrappedThumbDek, wrapNonce2) = await encryptData(thumbDek, kek);
 
     await s3Put(thumbKey, encryptedThumb, meta: {
@@ -330,7 +332,8 @@ void main() async {
     // Re-encrypt with known nonce
     final dek2 = rnd(32);
     final nonce2 = rnd(24);
-    final box = await aead.encrypt(originalJpeg!, secretKey: SecretKey(dek2), nonce: nonce2);
+    final box = await aead.encrypt(originalJpeg!,
+        secretKey: SecretKey(dek2), nonce: nonce2);
     final ctMac = Uint8List(box.cipherText.length + box.mac.bytes.length);
     ctMac.setAll(0, box.cipherText);
     ctMac.setAll(box.cipherText.length, box.mac.bytes);

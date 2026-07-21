@@ -9,7 +9,8 @@ import 'dart:typed_data';
 import 'package:enpix/domain/entities/storage_config.dart';
 import 'package:enpix/services/storage/s3_service.dart';
 
-final _endpoint = Platform.environment['S3_ENDPOINT'] ?? 'http://localhost:9000';
+final _endpoint =
+    Platform.environment['S3_ENDPOINT'] ?? 'http://localhost:9000';
 final _bucket = Platform.environment['S3_BUCKET'] ?? 'test';
 final _ak = Platform.environment['S3_ACCESS_KEY'] ?? '';
 final _sk = Platform.environment['S3_SECRET_KEY'] ?? '';
@@ -17,8 +18,15 @@ final _region = Platform.environment['S3_REGION'] ?? 'default';
 
 void main() async {
   int passed = 0, failed = 0;
-  void ok(String m) { passed++; print('  ✅ $m'); }
-  void fail(String m) { failed++; print('  ❌ $m'); }
+  void ok(String m) {
+    passed++;
+    print('  ✅ $m');
+  }
+
+  void fail(String m) {
+    failed++;
+    print('  ❌ $m');
+  }
 
   print('═══ S3 listObjects() Test ═══');
   print('Endpoint: $_endpoint');
@@ -48,11 +56,14 @@ void main() async {
   try {
     final testData = Uint8List.fromList([1, 2, 3, 4]);
     final testKey = 'test-list-obj';
-    await s3.putObject(testKey, testData, contentType: 'application/octet-stream');
+    await s3.putObject(testKey, testData,
+        contentType: 'application/octet-stream');
     final objects = await s3.listObjects('');
     final found = objects.any((o) => o.key.contains(testKey));
-    if (found) ok('Found uploaded object in list');
-    else fail('Object not found in list (${objects.length} objects)');
+    if (found)
+      ok('Found uploaded object in list');
+    else
+      fail('Object not found in list (${objects.length} objects)');
     await s3.deleteObject(testKey);
   } catch (e) {
     fail('Failed: $e');
@@ -67,8 +78,10 @@ void main() async {
     await s3.putObject('other/file3', testData);
     final objects = await s3.listObjects('prefix-test/');
     final count = objects.where((o) => o.key.startsWith('prefix-test/')).length;
-    if (count == 2) ok('Prefix filter works ($count objects)');
-    else fail('Expected 2, got $count');
+    if (count == 2)
+      ok('Prefix filter works ($count objects)');
+    else
+      fail('Expected 2, got $count');
     await s3.deleteObject('prefix-test/file1');
     await s3.deleteObject('prefix-test/file2');
     await s3.deleteObject('other/file3');
@@ -83,8 +96,10 @@ void main() async {
     await s3.putObject('thumbs/test_thumb.enc', testData);
     final objects = await s3.listObjects('thumbs/');
     final count = objects.where((o) => o.key.startsWith('thumbs/')).length;
-    if (count >= 1) ok('Thumbs listing works ($count objects)');
-    else fail('Expected >=1, got $count');
+    if (count >= 1)
+      ok('Thumbs listing works ($count objects)');
+    else
+      fail('Expected >=1, got $count');
     await s3.deleteObject('thumbs/test_thumb.enc');
   } catch (e) {
     fail('Failed: $e');
