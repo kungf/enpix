@@ -33,10 +33,13 @@ class _UploadRecord {
 /// [_maxRecords] (oldest dropped first) to bound Keychain size.
 class UploadTracker {
   final Logger _log = Logger('UploadTracker');
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  final FlutterSecureStorage _storage;
   static const _key = 'upload_records';
   static const _maxRecords = 10000;
   static const _pruneAge = Duration(days: 180);
+
+  UploadTracker({FlutterSecureStorage? storage})
+      : _storage = storage ?? const FlutterSecureStorage();
 
   Map<String, _UploadRecord> _records = {};
   bool _loaded = false;
