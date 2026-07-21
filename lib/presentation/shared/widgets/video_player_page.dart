@@ -119,6 +119,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
             alignment: Alignment.topLeft,
             child: IconButton(
               icon: const Icon(Icons.close_rounded, color: Colors.white),
+              tooltip: '关闭',
               onPressed: () => Navigator.of(context).pop(),
             ),
           ),

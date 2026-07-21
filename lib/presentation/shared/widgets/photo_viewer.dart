@@ -122,6 +122,7 @@ class _PhotoViewerState extends State<PhotoViewer> {
                         IconButton(
                             icon: const Icon(Icons.arrow_back_rounded,
                                 color: Colors.white),
+                            tooltip: '返回',
                             onPressed: () => Navigator.pop(context)),
                         Text('${_currentIndex + 1} / ${widget.assets.length}',
                             style: const TextStyle(
@@ -130,6 +131,7 @@ class _PhotoViewerState extends State<PhotoViewer> {
                         IconButton(
                             icon: const Icon(Icons.info_outline_rounded,
                                 color: Colors.white70),
+                            tooltip: '详情',
                             onPressed: () => _showInfo(context)),
                       ],
                     ),
