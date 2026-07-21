@@ -296,11 +296,18 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
 
   // ── Section builder ──
 
+  /// Assets matching the current type filter, in their original load order.
+  /// Shared by the grid section builder and the photo viewer so a filtered
+  /// view (e.g. photos-only) cannot swipe into filtered-out assets.
+  List<AssetEntity> get _filteredAssets => _assets.where((a) {
+        if (_filter == 'photos') return a.type == AssetType.image;
+        if (_filter == 'videos') return a.type == AssetType.video;
+        return true;
+      }).toList();
+
   void _rebuildSections() {
     final Map<String, List<AssetEntity>> groups = {};
-    for (final asset in _assets) {
-      if (_filter == 'photos' && asset.type != AssetType.image) continue;
-      if (_filter == 'videos' && asset.type != AssetType.video) continue;
+    for (final asset in _filteredAssets) {
       final date = asset.createDateTime;
       final key =
           '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
@@ -352,11 +359,12 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
   }
 
   void _openViewer(AssetEntity asset) {
-    final idx = _assets.indexOf(asset);
+    final filtered = _filteredAssets;
+    final idx = filtered.indexOf(asset);
     Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (_, __, ___) =>
-            PhotoViewer(assets: _assets, initialIndex: idx),
+            PhotoViewer(assets: filtered, initialIndex: idx),
         transitionsBuilder: (_, animation, __, child) =>
             FadeTransition(opacity: animation, child: child),
         transitionDuration: AppDuration.normal,
