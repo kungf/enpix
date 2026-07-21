@@ -77,7 +77,8 @@ class BackupManager extends StateNotifier<BackupTask> {
       hasAll: true,
     );
     if (albums.isEmpty) {
-      state = state.copyWith(status: BackupStatus.completed, completedAt: DateTime.now());
+      state = state.copyWith(
+          status: BackupStatus.completed, completedAt: DateTime.now());
       return;
     }
 
@@ -85,14 +86,16 @@ class BackupManager extends StateNotifier<BackupTask> {
     const pageSize = 200;
     int page = 0;
     while (!_cancelled) {
-      final assets = await albums[0].getAssetListPaged(page: page, size: pageSize);
+      final assets =
+          await albums[0].getAssetListPaged(page: page, size: pageSize);
       if (assets.isEmpty) break;
       allAssets.addAll(assets);
       page++;
     }
 
     if (_cancelled) {
-      state = state.copyWith(status: BackupStatus.stopped, completedAt: DateTime.now());
+      state = state.copyWith(
+          status: BackupStatus.stopped, completedAt: DateTime.now());
       return;
     }
 
@@ -152,7 +155,8 @@ class BackupManager extends StateNotifier<BackupTask> {
       startedAt: DateTime.now(),
     );
 
-    _log.info('Backup started: ${pending.length} pending, $totalSkipped total already uploaded');
+    _log.info(
+        'Backup started: ${pending.length} pending, $totalSkipped total already uploaded');
 
     int completed = 0, failed = 0, skipped = 0, totalBytes = 0;
     final errors = <String>[];
@@ -170,7 +174,7 @@ class BackupManager extends StateNotifier<BackupTask> {
       for (final r in results) {
         if (r == null) break; // cancelled
         if (r.success) {
-          await _tracker.markUploaded(r.assetId);
+          await _tracker.markUploaded(r.assetId, sizeBytes: r.size);
           if (r.remoteExists) {
             skipped++;
           } else {
@@ -181,7 +185,8 @@ class BackupManager extends StateNotifier<BackupTask> {
               try {
                 await _cache.save(r.assetId, r.thumbData!);
               } catch (e, st) {
-                _log.warning('Thumbnail cache save failed: ${r.fileName} — $e', e, st);
+                _log.warning(
+                    'Thumbnail cache save failed: ${r.fileName} — $e', e, st);
               }
             }
           }
@@ -241,12 +246,14 @@ class BackupManager extends StateNotifier<BackupTask> {
 
   /// Upload error report to S3 debug directory for remote diagnostics.
   /// Throws on failure — callers should handle errors.
-  Future<void> _uploadErrorReport(List<String> errors, int completed, int failed, int skipped) async {
+  Future<void> _uploadErrorReport(
+      List<String> errors, int completed, int failed, int skipped) async {
     if (!_s3.isConfigured) {
       throw StateError('S3 未配置，无法上传错误报告');
     }
     final now = DateTime.now();
-    final ts = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}'
+    final ts =
+        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}'
         '_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}'
         '_${now.millisecond.toString().padLeft(3, '0')}';
     final fileName = 'backup_errors_$ts.json';

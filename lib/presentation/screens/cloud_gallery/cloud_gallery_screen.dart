@@ -8,8 +8,8 @@ import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
 import 'package:enpix/services/crypto/crypto_service.dart';
 import 'package:enpix/services/storage/s3_service.dart';
+import 'package:enpix/services/storage/s3_config_service.dart';
 import 'package:enpix/services/providers.dart';
-import 'package:enpix/domain/entities/storage_config.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_empty_state.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_error_state.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_progress.dart';
@@ -111,40 +111,17 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
       final credService = ref.read(credentialServiceProvider);
       final s3 = ref.read(s3ServiceProvider);
 
-      if (!s3.isConfigured) {
-        final endpointUrl = await credService.getS3Endpoint() ?? '';
-        final bucketName = await credService.getS3Bucket() ?? '';
-        if (endpointUrl.isEmpty || bucketName.isEmpty) {
-          setState(() {
-            _loading = false;
-            _error = true;
-            _errorMsg = '请先在设置中配置 S3 Endpoint 和 Bucket';
-          });
-          return;
-        }
-        final s3Creds = await credService.loadS3Credentials();
-        if (s3Creds == null) {
-          setState(() {
-            _loading = false;
-            _error = true;
-            _errorMsg = '请先在设置中配置 Access Key 和 Secret Key';
-          });
-          return;
-        }
-        final region = await credService.getS3Region() ?? 'default';
-        final fingerprint = await credService.getKekFingerprint();
-        final deviceId = await ref.read(deviceServiceProvider).getDeviceId();
-        s3.configure(
-          StorageConfig(
-              endpointUrl: endpointUrl,
-              bucketName: bucketName,
-              region: region,
-              accessKey: s3Creds.accessKey,
-              secretKey: s3Creds.secretKey,
-              updatedAt: DateTime.now().millisecondsSinceEpoch),
-          kekFingerprint: fingerprint,
-          deviceId: deviceId,
-        );
+      final configResult =
+          await ref.read(s3ConfigServiceProvider).ensureConfigured();
+      if (configResult != S3ConfigResult.configured) {
+        setState(() {
+          _loading = false;
+          _error = true;
+          _errorMsg = configResult == S3ConfigResult.missingEndpoint
+              ? '请先在设置中配置 S3 Endpoint 和 Bucket'
+              : '请先在设置中配置 Access Key 和 Secret Key';
+        });
+        return;
       }
 
       final fingerprint = await credService.getKekFingerprint() ?? 'shared';
@@ -312,7 +289,8 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('下载失败: $e'), backgroundColor: context.colors.brandRed));
+            content: Text('下载失败: $e'),
+            backgroundColor: context.colors.brandRed));
       }
     }
   }
@@ -381,14 +359,18 @@ class _CloudGalleryScreenState extends ConsumerState<CloudGalleryScreen> {
         selected: selected,
         avatar: Icon(icon,
             size: 16,
-            color: selected ? context.colors.brandBlue : context.colors.labelSecondary),
+            color: selected
+                ? context.colors.brandBlue
+                : context.colors.labelSecondary),
         label: Text(label),
         onSelected: (_) => _onDeviceSelected(deviceId),
         selectedColor: context.colors.brandBlue.withAlpha(25),
         labelStyle: TextStyle(
             fontSize: 14,
             fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-            color: selected ? context.colors.brandBlue : context.colors.labelPrimary),
+            color: selected
+                ? context.colors.brandBlue
+                : context.colors.labelPrimary),
         showCheckmark: false,
         side: BorderSide.none,
       ),

@@ -6,7 +6,7 @@ import 'package:enpix/core/constants/app_constants.dart';
 import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
 import 'package:enpix/services/providers.dart';
-import 'package:enpix/domain/entities/storage_config.dart';
+import 'package:enpix/services/storage/s3_config_service.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_loading_state.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_empty_state.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_error_state.dart';
@@ -147,42 +147,14 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
   // ── S3 config helper ──
 
   Future<bool> _configureS3() async {
-    final credService = ref.read(credentialServiceProvider);
-    final s3Creds = await credService.loadS3Credentials();
+    final result = await ref.read(s3ConfigServiceProvider).ensureConfigured();
     if (!mounted) return false;
-    if (s3Creds == null) {
+    if (result != S3ConfigResult.configured) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('请先在设置中配置 S3 存储')),
       );
       return false;
     }
-
-    final endpointUrl = await credService.getS3Endpoint() ?? '';
-    final bucketName = await credService.getS3Bucket() ?? '';
-    final region = await credService.getS3Region() ?? 'default';
-
-    if (endpointUrl.isEmpty || bucketName.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('S3 配置不完整，请检查设置')),
-        );
-      }
-      return false;
-    }
-
-    final deviceId = await ref.read(deviceServiceProvider).getDeviceId();
-    ref.read(s3ServiceProvider).configure(
-          StorageConfig(
-            endpointUrl: endpointUrl,
-            bucketName: bucketName,
-            region: region,
-            accessKey: s3Creds.accessKey,
-            secretKey: s3Creds.secretKey,
-            updatedAt: DateTime.now().millisecondsSinceEpoch,
-          ),
-          kekFingerprint: await credService.getKekFingerprint(),
-          deviceId: deviceId,
-        );
     return true;
   }
 
@@ -513,14 +485,18 @@ class _TypeFilter extends StatelessWidget {
               selected: s,
               avatar: Icon(icon,
                   size: 16,
-                  color: s ? context.colors.brandBlue : context.colors.labelSecondary),
+                  color: s
+                      ? context.colors.brandBlue
+                      : context.colors.labelSecondary),
               label: Text(label),
               onSelected: (_) => onChanged(key),
               selectedColor: context.colors.brandBlue.withAlpha(25),
               labelStyle: TextStyle(
                   fontSize: 14,
                   fontWeight: s ? FontWeight.w600 : FontWeight.w500,
-                  color: s ? context.colors.brandBlue : context.colors.labelPrimary),
+                  color: s
+                      ? context.colors.brandBlue
+                      : context.colors.labelPrimary),
               showCheckmark: false,
               side: BorderSide.none,
             ),
@@ -663,8 +639,7 @@ class _AssetThumbState extends State<_AssetThumb> {
                     Icon(Icons.play_arrow_rounded,
                         size: 14, color: Colors.white),
                     Text('${widget.asset.duration}s',
-                        style:
-                            TextStyle(color: Colors.white, fontSize: 10)),
+                        style: TextStyle(color: Colors.white, fontSize: 10)),
                   ]),
                 )),
           if (widget.isUploaded && !widget.selected)
@@ -675,7 +650,8 @@ class _AssetThumbState extends State<_AssetThumb> {
                     width: 16,
                     height: 16,
                     decoration: BoxDecoration(
-                        color: context.colors.brandGreen, shape: BoxShape.circle),
+                        color: context.colors.brandGreen,
+                        shape: BoxShape.circle),
                     child: const Icon(Icons.cloud_done_rounded,
                         size: 10, color: Colors.white))),
           if (widget.selected)
@@ -791,7 +767,8 @@ class _AnimatedBackupFabState extends State<_AnimatedBackupFab>
     final isGreen = widget.task.isRunning || _showCheckmark;
     return FloatingActionButton(
       onPressed: widget.onTap,
-      backgroundColor: isGreen ? context.colors.brandGreen : context.colors.brandBlue,
+      backgroundColor:
+          isGreen ? context.colors.brandGreen : context.colors.brandBlue,
       child: Stack(
         alignment: Alignment.center,
         children: [
