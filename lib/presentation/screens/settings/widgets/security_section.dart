@@ -89,6 +89,20 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
               child: const Text('恢复', style: TextStyle(fontSize: 15)),
             ),
           ),
+        if (_hasPassphrase && !isActive)
+          EnpixListTile(
+            icon: Icons.delete_forever_rounded,
+            iconColor: context.colors.brandRed,
+            title: '重置加密数据',
+            subtitle: '删除所有密钥和密码。云端已加密照片将无法解密。',
+            trailing: TextButton(
+              onPressed: _resetAll,
+              child: Text(
+                '重置',
+                style: TextStyle(fontSize: 15, color: context.colors.brandRed),
+              ),
+            ),
+          ),
         if (isActive)
           EnpixListTile(
             icon: Icons.key_rounded,
@@ -278,6 +292,20 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
       }
     } catch (e) {
       _showSnack('备份失败: $e', isError: true);
+    }
+  }
+
+  Future<void> _resetAll() async {
+    final cred = ref.read(credentialServiceProvider);
+    final confirmed = await showResetDialog(context);
+    if (confirmed != true) return;
+
+    try {
+      await cred.resetAll();
+      await _refreshHasPassphrase();
+      _showSnack('加密数据已重置，请重新设置密码', isError: false);
+    } catch (e) {
+      _showSnack('重置失败: $e', isError: true);
     }
   }
 }
