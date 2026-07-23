@@ -47,7 +47,9 @@ class S3ConfigService {
     }
 
     final region = await _creds.getS3Region() ?? 'default';
-    final fingerprint = await _creds.getKekFingerprint();
+    // Stable path prefix — survives password change / recovery, unlike the
+    // KEK fingerprint which changes and would orphan uploaded photos.
+    final pathPrefix = await _creds.getPathPrefix();
     final deviceId = await _devices.getDeviceId();
 
     _s3.configure(
@@ -59,7 +61,7 @@ class S3ConfigService {
         secretKey: s3Creds.secretKey,
         updatedAt: DateTime.now().millisecondsSinceEpoch,
       ),
-      kekFingerprint: fingerprint,
+      kekFingerprint: pathPrefix,
       deviceId: deviceId,
     );
     _log.info('S3 configured: $endpointUrl / $bucketName');

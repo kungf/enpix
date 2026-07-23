@@ -208,7 +208,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           secretKey: _sk.text.trim(),
           updatedAt: DateTime.now().millisecondsSinceEpoch,
         ),
-        kekFingerprint: await cred.getKekFingerprint(),
+        kekFingerprint: await cred.getPathPrefix(),
       );
       final msg = await s3.testConnection();
       setState(() {
@@ -231,8 +231,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     if (pw == null || pw.isEmpty) return;
     try {
       final cred = ref.read(credentialServiceProvider);
-      final kek = await cred.setupPassphrase(pw);
-      cred.startSession(kek);
+      // setupPassphrase now activates the full session (KEK + Master Key)
+      // and persists the passphrase for auto-unlock itself.
+      await cred.setupPassphrase(pw);
       ref.read(sessionTickProvider.notifier).state++;
       setState(() => _passwordSet = true);
     } catch (e) {

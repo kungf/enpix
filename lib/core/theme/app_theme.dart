@@ -20,6 +20,29 @@ class AppTheme {
 
   static ThemeData _build(AppColorScheme c, Brightness brightness) {
     final isDark = brightness == Brightness.dark;
+    final scheme = isDark
+        ? ColorScheme.dark(
+            primary: c.brandBlue,
+            onPrimary: Colors.white,
+            secondary: c.brandGreen,
+            onSecondary: Colors.white,
+            error: c.brandRed,
+            onError: Colors.white,
+            surface: c.backgroundSecondary,
+            onSurface: c.labelPrimary,
+            outline: c.separatorOpaque,
+          )
+        : ColorScheme.light(
+            primary: c.brandBlue,
+            onPrimary: Colors.white,
+            secondary: c.brandGreen,
+            onSecondary: Colors.white,
+            error: c.brandRed,
+            onError: Colors.white,
+            surface: c.backgroundSecondary,
+            onSurface: c.labelPrimary,
+            outline: c.separatorOpaque,
+          );
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
@@ -27,29 +50,7 @@ class AppTheme {
       extensions: <ThemeExtension<dynamic>>[c],
 
       // ── Color Scheme ──
-      colorScheme: (isDark
-          ? ColorScheme.dark(
-              primary: c.brandBlue,
-              onPrimary: Colors.white,
-              secondary: c.brandGreen,
-              onSecondary: Colors.white,
-              error: c.brandRed,
-              onError: Colors.white,
-              surface: c.backgroundSecondary,
-              onSurface: c.labelPrimary,
-              outline: c.separatorOpaque,
-            )
-          : ColorScheme.light(
-              primary: c.brandBlue,
-              onPrimary: Colors.white,
-              secondary: c.brandGreen,
-              onSecondary: Colors.white,
-              error: c.brandRed,
-              onError: Colors.white,
-              surface: c.backgroundSecondary,
-              onSurface: c.labelPrimary,
-              outline: c.separatorOpaque,
-            )),
+      colorScheme: scheme,
 
       // ── AppBar ──
       appBarTheme: AppBarTheme(
@@ -213,13 +214,17 @@ class AppTheme {
       // ── SnackBar ──
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
+        // Explicit inverse-surface pair: the M3 default background is
+        // near-white in dark mode, and the previously hard-coded white text
+        // was invisible on it — messages rendered as an empty white box.
+        backgroundColor: scheme.inverseSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
-        contentTextStyle: const TextStyle(
+        contentTextStyle: TextStyle(
           fontSize: 15,
           fontWeight: FontWeight.w500,
-          color: Colors.white,
+          color: scheme.onInverseSurface,
         ),
       ),
 

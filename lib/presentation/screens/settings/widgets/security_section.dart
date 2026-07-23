@@ -1,15 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:enpix/core/theme/context_ext.dart';
+import 'package:enpix/core/errors/storage_exception.dart';
 import 'package:enpix/services/providers.dart';
+import 'package:enpix/services/storage/s3_config_service.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_section.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_list_tile.dart';
 import 'package:enpix/presentation/screens/settings/dialogs/setup_password_dialog.dart';
 import 'package:enpix/presentation/screens/settings/dialogs/unlock_and_reset_dialogs.dart';
 import 'package:enpix/presentation/screens/settings/dialogs/recovery_key_dialog.dart';
+import 'package:enpix/presentation/screens/settings/dialogs/recovery_input_dialog.dart';
 
 /// Encryption passphrase section — controls the passphrase that protects
 /// end-to-end encrypted cloud photos.
+///
+/// Three states:
+/// - **未设置**: no passphrase in Keychain → offer 设置.
+/// - **未解锁**: passphrase exists but session is not active (e.g. after an
+///   app restart where auto-unlock failed) → offer 解锁 and 找回密码.
+///   Crucially we must NOT offer 设置 here — setupPassphrase would generate
+///   a NEW Master Key and orphan every previously encrypted photo.
+/// - **已解锁**: session active → offer 修改 and 备份恢复密钥.
 class SecuritySection extends ConsumerStatefulWidget {
   const SecuritySection({super.key});
 
@@ -18,6 +29,21 @@ class SecuritySection extends ConsumerStatefulWidget {
 }
 
 class _SecuritySectionState extends ConsumerState<SecuritySection> {
+  bool _hasPassphrase = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshHasPassphrase();
+  }
+
+  Future<void> _refreshHasPassphrase() async {
+    final has = await ref.read(credentialServiceProvider).hasPassphrase();
+    if (mounted && has != _hasPassphrase) {
+      setState(() => _hasPassphrase = has);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.watch(sessionTickProvider);
@@ -32,18 +58,38 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
           iconColor:
               isActive ? context.colors.brandGreen : context.colors.brandGray,
           title: '加密密码',
-          subtitle: isActive ? '已设置' : '未设置',
-          trailing: isActive
-              ? TextButton(
-                  onPressed: _changePassphrase,
-                  child: const Text('修改', style: TextStyle(fontSize: 15)),
-                )
-              : FilledButton.tonal(
+          subtitle: !_hasPassphrase
+              ? '未设置'
+              : isActive
+                  ? '已解锁'
+                  : '已设置 · 未解锁',
+          trailing: !_hasPassphrase
+              ? FilledButton.tonal(
                   onPressed: _setupPassphrase,
                   child: const Text('设置'),
-                ),
+                )
+              : isActive
+                  ? TextButton(
+                      onPressed: _changePassphrase,
+                      child: const Text('修改', style: TextStyle(fontSize: 15)),
+                    )
+                  : TextButton(
+                      onPressed: _unlock,
+                      child: const Text('解锁', style: TextStyle(fontSize: 15)),
+                    ),
         ),
-        if (isActive) ...[
+        if (_hasPassphrase && !isActive)
+          EnpixListTile(
+            icon: Icons.key_rounded,
+            iconColor: context.colors.brandOrange,
+            title: '找回密码',
+            subtitle: '忘记密码？用恢复密钥恢复数据并重设密码',
+            trailing: TextButton(
+              onPressed: _recoverWithKey,
+              child: const Text('恢复', style: TextStyle(fontSize: 15)),
+            ),
+          ),
+        if (isActive)
           EnpixListTile(
             icon: Icons.key_rounded,
             iconColor: context.colors.brandPurple,
@@ -54,8 +100,18 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
               child: const Text('备份', style: TextStyle(fontSize: 15)),
             ),
           ),
-        ],
       ],
+    );
+  }
+
+  void _showSnack(String message, {required bool isError}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor:
+            isError ? context.colors.brandRed : context.colors.brandGreen,
+      ),
     );
   }
 
@@ -64,24 +120,99 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
     final pw = await showSetupPasswordDialog(context);
     if (pw == null || pw.isEmpty) return;
     try {
-      final kek = await cred.setupPassphrase(pw);
-      cred.startSession(kek);
+      // setupPassphrase activates the full session (KEK + Master Key) and
+      // persists the passphrase for auto-unlock itself.
+      await cred.setupPassphrase(pw);
+      ref.read(sessionTickProvider.notifier).state++;
+      await _refreshHasPassphrase();
+      _showSnack('加密密码已设置', isError: false);
+    } catch (e) {
+      _showSnack('设置失败: $e', isError: true);
+    }
+  }
+
+  /// Unlock an existing passphrase — the entry point for the "已设置 · 未解锁"
+  /// state, e.g. after an app restart where auto-unlock failed.
+  Future<void> _unlock() async {
+    final cred = ref.read(credentialServiceProvider);
+    final pw = await showUnlockDialog(context);
+    if (pw == null || pw.isEmpty) return;
+    try {
+      await cred.unlockWithPassphrase(pw);
+      ref.read(sessionTickProvider.notifier).state++;
+    } on WrongPassphraseException {
+      _showSnack('密码错误', isError: true);
+    } on Exception catch (e) {
+      _showSnack('解锁失败: $e', isError: true);
+    }
+  }
+
+  /// Recover access with the 24-word recovery key, then set a new password.
+  /// The Master Key is preserved end-to-end, so all cloud photos stay
+  /// decryptable.
+  Future<void> _recoverWithKey() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final brandRed = context.colors.brandRed;
+    final brandGreen = context.colors.brandGreen;
+    final cred = ref.read(credentialServiceProvider);
+    final recovery = ref.read(recoveryServiceProvider);
+
+    final mnemonic = await showRecoveryInputDialog(context);
+    if (mnemonic == null || mnemonic.trim().isEmpty) return;
+
+    // Recovery downloads the wrapped Master Key from S3 — must be configured.
+    final s3Result = await ref.read(s3ConfigServiceProvider).ensureConfigured();
+    if (s3Result != S3ConfigResult.configured) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: const Text('请先在设置中配置 S3 存储'),
+            backgroundColor: brandRed,
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      final prefix = await cred.getPathPrefix();
+      final masterKey = await recovery.recoverFromMnemonic(
+        mnemonic: mnemonic,
+        pathPrefix: prefix,
+      );
+      cred.restoreWithRecoveryKey(masterKey);
+    } on Exception catch (e) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('恢复失败: $e'), backgroundColor: brandRed),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    final newPw = await showSetupPasswordDialog(context);
+    if (newPw == null || newPw.isEmpty) {
+      // Session holds the recovered Master Key but no new password was set.
+      // Recovery can be retried later — nothing was written.
+      return;
+    }
+
+    try {
+      await cred.resetPassphrase(newPw);
       ref.read(sessionTickProvider.notifier).state++;
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
-            content: const Text('加密密码已设置'),
-            backgroundColor: context.colors.brandGreen,
+            content: const Text('密码已重置，数据已恢复'),
+            backgroundColor: brandGreen,
           ),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('设置失败: $e'),
-            backgroundColor: context.colors.brandRed,
-          ),
+        messenger.showSnackBar(
+          SnackBar(content: Text('重置失败: $e'), backgroundColor: brandRed),
         );
       }
     }
@@ -91,44 +222,21 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
     final cred = ref.read(credentialServiceProvider);
     final oldPw = await showUnlockDialog(context);
     if (oldPw == null || oldPw.isEmpty) return;
-    try {
-      await cred.verifyPassphrase(oldPw);
-    } on Exception {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('密码错误'),
-            backgroundColor: context.colors.brandRed,
-          ),
-        );
-      }
-      return;
-    }
 
     if (!mounted) return;
     final newPw = await showSetupPasswordDialog(context);
     if (newPw == null || newPw.isEmpty) return;
 
     try {
+      // changePassphrase verifies the old password internally and keeps the
+      // session active with the new KEK.
       await cred.changePassphrase(oldPw, newPw);
       ref.read(sessionTickProvider.notifier).state++;
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('密码已更新'),
-            backgroundColor: context.colors.brandGreen,
-          ),
-        );
-      }
+      _showSnack('密码已更新', isError: false);
+    } on WrongPassphraseException {
+      _showSnack('原密码错误', isError: true);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('修改失败: $e'),
-            backgroundColor: context.colors.brandRed,
-          ),
-        );
-      }
+      _showSnack('修改失败: $e', isError: true);
     }
   }
 
@@ -137,22 +245,22 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
     final recovery = ref.read(recoveryServiceProvider);
 
     if (cred.sessionMasterKey == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('请先解锁'),
-            backgroundColor: context.colors.brandRed,
-          ),
-        );
-      }
+      _showSnack('请先解锁', isError: true);
+      return;
+    }
+
+    // Recovery blob is uploaded to S3 — ensure configuration is loaded.
+    final s3Result = await ref.read(s3ConfigServiceProvider).ensureConfigured();
+    if (s3Result != S3ConfigResult.configured) {
+      _showSnack('请先在设置中配置 S3 存储', isError: true);
       return;
     }
 
     try {
-      final fingerprint = await cred.getKekFingerprint() ?? 'shared';
+      final prefix = await cred.getPathPrefix();
       final mnemonic = await recovery.setupRecovery(
         masterKey: cred.sessionMasterKey!,
-        kekFingerprint: fingerprint,
+        pathPrefix: prefix,
       );
 
       if (mounted) {
@@ -169,14 +277,7 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
         }
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('备份失败: $e'),
-            backgroundColor: context.colors.brandRed,
-          ),
-        );
-      }
+      _showSnack('备份失败: $e', isError: true);
     }
   }
 }

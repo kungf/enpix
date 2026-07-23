@@ -42,6 +42,13 @@ class CredentialService {
   static const _argon2MemoryKey = 'argon2_memory_v1';
   static const _argon2OpsKey = 'argon2_ops_v1';
 
+  /// Stable S3 path prefix. Set once at passphrase setup and never changed
+  /// afterwards — the KEK fingerprint changes on every password change or
+  /// recovery, and using it as the S3 prefix would orphan previously
+  /// uploaded photos. The KEK fingerprint is kept solely for unlock
+  /// verification.
+  static const _pathPrefixKey = 's3_path_prefix_v1';
+
   // Session state
   Uint8List? _sessionKek;
   Uint8List? _sessionMasterKey;
@@ -140,10 +147,48 @@ class CredentialService {
     );
     await _storage.write(key: _argon2OpsKey, value: params.ops.toString());
 
+    // Stable S3 path prefix — derived from the initial KEK fingerprint and
+    // never updated again (see [_pathPrefixKey]).
+    await _storage.write(
+      key: _pathPrefixKey,
+      value: fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared',
+    );
+
+    // Save passphrase for auto-unlock on next app start. Without this the
+    // session could never be restored after a restart (backups silently
+    // blocked until a manual unlock that had no UI entry point).
+    await _storage.write(key: _savedPassphraseKey, value: passphrase);
+
+    // Activate the full session immediately — KEK and Master Key in memory.
+    // Previously only the KEK was set by callers, leaving sessionMasterKey
+    // null and isSessionActive false, so backups were blocked right after
+    // the user set their password.
+    _sessionKek = kek;
+    _sessionMasterKey = masterKey;
+    _sessionActive = true;
+
     _log.info(
       'Passphrase setup complete (adaptive params, Master Key generated)',
     );
     return kek;
+  }
+
+  /// The stable S3 path prefix (12 chars, or 'shared' when unset).
+  ///
+  /// Existing installs that predate this key are migrated lazily: their
+  /// data lives under the KEK-fingerprint prefix, so that value is adopted
+  /// and persisted. Callers must use this instead of [getKekFingerprint]
+  /// for any S3 path construction.
+  Future<String> getPathPrefix() async {
+    final existing = await _storage.read(key: _pathPrefixKey);
+    if (existing != null) return existing;
+    final legacy = await _storage.read(key: _kekFingerprintKey);
+    if (legacy != null && legacy.length >= 12) {
+      final prefix = legacy.substring(0, 12);
+      await _storage.write(key: _pathPrefixKey, value: prefix);
+      return prefix;
+    }
+    return 'shared';
   }
 
   // ── KEK Unlock ───────────────────────────────────────────────
@@ -311,13 +356,77 @@ class CredentialService {
       await saveS3Credentials(creds.accessKey, creds.secretKey);
     }
 
-    // Zero the new KEK (it's in Keychain now).
-    _crypto.secureFree(newKek);
-    if (masterKey != null) {
-      _crypto.secureFree(masterKey);
-    }
+    // Save the NEW passphrase for auto-unlock — previously the saved
+    // passphrase stayed the old one, so the next launch failed auto-unlock
+    // and cleared it, locking the user out with no unlock UI.
+    await _storage.write(key: _savedPassphraseKey, value: newPassphrase);
+
+    // Resume the session with the new KEK and the preserved Master Key
+    // (both now owned by the session — do NOT zero them). Previously the
+    // session was left dead after a password change.
+    _sessionKek = newKek;
+    _sessionMasterKey = masterKey;
+    _sessionActive = true;
 
     _log.info('Passphrase changed successfully (Master Key preserved)');
+  }
+
+  /// Reset the passphrase after a recovery-key restore.
+  ///
+  /// Re-wraps the EXISTING session Master Key with a KEK derived from
+  /// [newPassphrase] — the Master Key never changes, so all previously
+  /// uploaded photos remain decryptable. The stable S3 path prefix
+  /// (see [getPathPrefix]) is intentionally left untouched.
+  ///
+  /// Requires an active session holding a Master Key (e.g. via
+  /// [restoreWithRecoveryKey]); throws [StateError] otherwise.
+  Future<void> resetPassphrase(String newPassphrase) async {
+    final masterKey = _sessionMasterKey;
+    if (!_sessionActive || masterKey == null) {
+      throw StateError('重置密码前需要先用恢复密钥恢复会话');
+    }
+    _log.info('Resetting passphrase after recovery...');
+
+    // Derive new KEK with adaptive params.
+    final salt = _crypto.generateSalt();
+    final params = await _crypto.probeArgon2Params(newPassphrase, salt);
+    final newKek = await _crypto.deriveKekWithParams(
+      newPassphrase,
+      salt,
+      memory: params.memory,
+      iterations: params.ops,
+    );
+    final fingerprint = await _crypto.computeFingerprint(newKek);
+
+    // Re-wrap the same Master Key with the new KEK.
+    final wrappedMk = await _crypto.wrapKey(masterKey, newKek);
+
+    // Store updated Keychain entries.
+    await _storage.write(
+      key: _kekSaltKey,
+      value: CryptoService.b64Encode(salt),
+    );
+    await _storage.write(key: _kekKey, value: CryptoService.b64Encode(newKek));
+    await _storage.write(key: _kekFingerprintKey, value: fingerprint);
+    await _storage.write(key: _hasPassphraseKey, value: 'true');
+    await _storage.write(
+      key: _wrappedMasterKeyKey,
+      value: CryptoService.b64Encode(wrappedMk),
+    );
+    await _storage.write(
+      key: _argon2MemoryKey,
+      value: params.memory.toString(),
+    );
+    await _storage.write(key: _argon2OpsKey, value: params.ops.toString());
+    await _storage.write(key: _savedPassphraseKey, value: newPassphrase);
+
+    // Refresh the session with the new KEK; Master Key stays as-is.
+    final oldKek = _sessionKek;
+    _sessionKek = newKek;
+    _sessionActive = true;
+    if (oldKek != null) _crypto.secureFree(oldKek);
+
+    _log.info('Passphrase reset complete (Master Key preserved)');
   }
 
   // ── S3 Credential Storage ────────────────────────────────────
@@ -384,6 +493,7 @@ class CredentialService {
     await _storage.delete(key: _wrappedMasterKeyKey);
     await _storage.delete(key: _argon2MemoryKey);
     await _storage.delete(key: _argon2OpsKey);
+    await _storage.delete(key: _pathPrefixKey);
     _log.warning('All credentials and keys deleted');
   }
 }

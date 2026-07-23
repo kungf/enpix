@@ -24,9 +24,13 @@ class RecoveryService {
   /// 2. Wrap Master Key with Recovery Key
   /// 3. Upload wrapped Master Key to S3
   /// 4. Return the mnemonic for the user to write down
+  ///
+  /// [pathPrefix] is the stable S3 path prefix from
+  /// [CredentialService.getPathPrefix] — it survives password changes, so
+  /// the recovery blob stays findable after a reset.
   Future<String> setupRecovery({
     required Uint8List masterKey,
-    required String kekFingerprint,
+    required String pathPrefix,
   }) async {
     _log.info('Setting up recovery key...');
 
@@ -37,7 +41,7 @@ class RecoveryService {
     final wrappedMk = await _crypto.wrapKey(masterKey, recoveryKey);
 
     // 3. Upload to S3
-    final s3Key = _makeRecoveryKey(kekFingerprint);
+    final s3Key = _makeRecoveryKey(pathPrefix);
     await _s3.putObject(
       s3Key,
       wrappedMk,
@@ -58,9 +62,11 @@ class RecoveryService {
   /// Recover the Master Key from a mnemonic provided by the user.
   /// Returns the decrypted Master Key, or throws if the mnemonic is invalid
   /// or the S3 object is missing.
+  ///
+  /// [pathPrefix] is the stable S3 path prefix (see [setupRecovery]).
   Future<Uint8List> recoverFromMnemonic({
     required String mnemonic,
-    required String kekFingerprint,
+    required String pathPrefix,
   }) async {
     _log.info('Recovering from mnemonic...');
 
@@ -68,7 +74,7 @@ class RecoveryService {
     final recoveryKey = _mnemonicToRecoveryKey(mnemonic);
 
     // 2. Download wrapped master key from S3
-    final s3Key = _makeRecoveryKey(kekFingerprint);
+    final s3Key = _makeRecoveryKey(pathPrefix);
     final Uint8List wrappedMk;
     try {
       wrappedMk = await _s3.getObject(s3Key);
@@ -93,8 +99,8 @@ class RecoveryService {
   }
 
   /// Check if recovery metadata exists on S3.
-  Future<bool> hasRecoveryMetadata(String kekFingerprint) async {
-    final s3Key = _makeRecoveryKey(kekFingerprint);
+  Future<bool> hasRecoveryMetadata(String pathPrefix) async {
+    final s3Key = _makeRecoveryKey(pathPrefix);
     return _s3.objectExists(s3Key);
   }
 

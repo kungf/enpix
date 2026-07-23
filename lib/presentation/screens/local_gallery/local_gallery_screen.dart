@@ -14,6 +14,8 @@ import 'package:enpix/presentation/shared/widgets/enpix_progress.dart';
 import 'package:enpix/presentation/shared/widgets/photo_viewer.dart';
 import 'package:enpix/presentation/shared/widgets/selection_action_bar.dart';
 import 'package:enpix/presentation/shared/widgets/backup_progress_widgets.dart';
+import 'package:enpix/presentation/screens/settings/dialogs/unlock_and_reset_dialogs.dart';
+import 'package:enpix/core/errors/storage_exception.dart';
 import 'package:enpix/presentation/shared/utils/format_duration.dart';
 import 'package:enpix/services/thumbnail/thumbnail_loader.dart';
 import 'package:enpix/services/upload/backup_task.dart';
@@ -163,22 +165,63 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
 
   // ── Backup actions ──
 
-  Future<void> _startBackup() async {
+  /// Ensure the encryption session is active, prompting the user to unlock
+  /// with their passphrase when needed. Returns true when ready to upload.
+  Future<bool> _ensureSession() async {
     final credService = ref.read(credentialServiceProvider);
-    final manager = ref.read(backupManagerProvider.notifier);
-    if (ref.read(backupManagerProvider).isRunning) {
-      _showBackupProgress();
-      return;
-    }
-    if (!credService.isSessionActive) {
+    if (credService.isSessionActive) return true;
+
+    if (!await credService.hasPassphrase()) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('请先在设置中设置加密密码')),
         );
       }
+      return false;
+    }
+
+    if (!mounted) return false;
+    final messenger = ScaffoldMessenger.of(context);
+    final pw = await showUnlockDialog(context);
+    if (pw == null || pw.isEmpty) return false;
+    try {
+      await credService.unlockWithPassphrase(pw);
+      // Verify the session is actually active — unlockWithPassphrase can
+      // throw StateError (not an Exception, so the generic catch below
+      // is needed) and may leave _sessionMasterKey null if the storage
+      // state is inconsistent.
+      if (!credService.isSessionActive) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('解锁失败: 密钥数据不完整，请尝试重新设置密码')),
+        );
+        return false;
+      }
+      ref.read(sessionTickProvider.notifier).state++;
+      return true;
+    } on WrongPassphraseException {
+      messenger.showSnackBar(const SnackBar(content: Text('密码错误')));
+      return false;
+    } on Exception catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('解锁失败: $e')));
+      return false;
+    } on Error catch (e) {
+      // StateError (e.g. "No passphrase has been set up") is an Error,
+      // not an Exception — the generic Exception catch above misses it.
+      messenger.showSnackBar(
+        SnackBar(content: Text('解锁异常: ${e.runtimeType}')),
+      );
+      return false;
+    }
+  }
+
+  Future<void> _startBackup() async {
+    final manager = ref.read(backupManagerProvider.notifier);
+    if (ref.read(backupManagerProvider).isRunning) {
+      _showBackupProgress();
       return;
     }
-    if (!await _configureS3()) return;
+    if (!await _ensureSession()) return;
+    if (!mounted || !await _configureS3()) return;
     await manager.startFull();
     final ids = await ref.read(uploadTrackerProvider).uploadedAssetIds;
     if (mounted) setState(() => _uploadedIds.addAll(ids));
@@ -191,16 +234,8 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
     _exitSelection();
     if (selectedAssets.isEmpty) return;
 
-    final credService = ref.read(credentialServiceProvider);
-    if (!credService.isSessionActive) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('请先在设置中设置加密密码')),
-        );
-      }
-      return;
-    }
-    if (!await _configureS3()) return;
+    if (!await _ensureSession()) return;
+    if (!mounted || !await _configureS3()) return;
     await ref.read(backupManagerProvider.notifier).start(selectedAssets);
     final ids = await ref.read(uploadTrackerProvider).uploadedAssetIds;
     if (mounted) setState(() => _uploadedIds.addAll(ids));
