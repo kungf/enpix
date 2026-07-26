@@ -58,20 +58,20 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
           iconColor:
               isActive ? context.colors.brandGreen : context.colors.brandGray,
           title: '加密密码',
-          subtitle: !_hasPassphrase
-              ? '未设置'
-              : isActive
-                  ? '已解锁'
+          subtitle: isActive
+              ? '已解锁'
+              : !_hasPassphrase
+                  ? '未设置'
                   : '已设置 · 未解锁',
-          trailing: !_hasPassphrase
-              ? FilledButton.tonal(
-                  onPressed: _setupPassphrase,
-                  child: const Text('设置'),
+          trailing: isActive
+              ? TextButton(
+                  onPressed: _changePassphrase,
+                  child: const Text('修改', style: TextStyle(fontSize: 15)),
                 )
-              : isActive
-                  ? TextButton(
-                      onPressed: _changePassphrase,
-                      child: const Text('修改', style: TextStyle(fontSize: 15)),
+              : !_hasPassphrase
+                  ? FilledButton.tonal(
+                      onPressed: _setupPassphrase,
+                      child: const Text('设置'),
                     )
                   : TextButton(
                       onPressed: _unlock,
@@ -137,7 +137,9 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
       // setupPassphrase activates the full session (KEK + Master Key) and
       // persists the passphrase for auto-unlock itself.
       await cred.setupPassphrase(pw);
+      if (mounted) setState(() => _hasPassphrase = true);
       ref.read(sessionTickProvider.notifier).state++;
+      // Double-check against Keychain as a safety net.
       await _refreshHasPassphrase();
       _showSnack('加密密码已设置', isError: false);
     } catch (e) {
@@ -214,6 +216,7 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
 
     try {
       await cred.resetPassphrase(newPw);
+      if (mounted) setState(() => _hasPassphrase = true);
       ref.read(sessionTickProvider.notifier).state++;
       if (mounted) {
         messenger.showSnackBar(

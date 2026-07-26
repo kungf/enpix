@@ -65,9 +65,9 @@ class CryptoService {
         if (sw.elapsedMilliseconds < _argon2ProbeTimeoutMs) {
           return (memory: memory, ops: ops);
         }
-      } on Exception catch (_) {
-        // Non-OOM failure (e.g. timeout) — fall through to next tier.
-        // OutOfMemoryError and other Errors are not caught and will propagate.
+      } catch (_) {
+        // Any failure (Exception or Error, e.g. OOM on devices with limited
+        // memory) — fall through to next tier.
       }
       memory ~/= 2;
       ops *= 2;
