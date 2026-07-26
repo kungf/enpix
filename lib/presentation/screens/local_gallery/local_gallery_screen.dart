@@ -30,7 +30,9 @@ import 'package:enpix/services/upload/backup_task.dart';
 /// - Immersive photo viewer with EXIF info
 /// - Skeleton loading states
 class LocalGalleryScreen extends ConsumerStatefulWidget {
-  const LocalGalleryScreen({super.key});
+  final VoidCallback? onNavigateToSettings;
+
+  const LocalGalleryScreen({super.key, this.onNavigateToSettings});
 
   @override
   ConsumerState<LocalGalleryScreen> createState() => _LocalGalleryScreenState();
@@ -149,6 +151,52 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
     if (mounted) setState(() => _uploadedIds.addAll(ids));
   }
 
+  // ── Setup check ──
+
+  /// Check that S3 credentials and passphrase are configured.
+  /// If not, show a reminder dialog directing to Settings.
+  /// Returns true when ready.
+  Future<bool> _ensureSetup() async {
+    final cred = ref.read(credentialServiceProvider);
+    final hasPassphrase = await cred.hasPassphrase();
+    final hasCreds = (await cred.loadS3Credentials()) != null;
+    final hasEndpoint = (await cred.getS3Endpoint())?.isNotEmpty ?? false;
+    final hasBucket = (await cred.getS3Bucket())?.isNotEmpty ?? false;
+
+    if (hasPassphrase && hasEndpoint && hasBucket && hasCreds) return true;
+
+    if (!mounted) return false;
+
+    // Build a message describing what's missing.
+    final missingItems = <String>[];
+    if (!hasPassphrase) missingItems.add('加密密码');
+    if (!hasEndpoint || !hasBucket || !hasCreds) missingItems.add('S3 存储');
+    final missingDesc = missingItems.join(' 和 ');
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('需要配置'),
+        content: Text('请先在设置中配置 $missingDesc，然后再进行备份。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('稍后'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              widget.onNavigateToSettings?.call();
+            },
+            child: const Text('去设置'),
+          ),
+        ],
+      ),
+    );
+
+    return false;
+  }
+
   // ── S3 config helper ──
 
   Future<bool> _configureS3() async {
@@ -220,6 +268,7 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
       _showBackupProgress();
       return;
     }
+    if (!await _ensureSetup()) return;
     if (!await _ensureSession()) return;
     if (!mounted || !await _configureS3()) return;
     await manager.startFull();
@@ -234,6 +283,7 @@ class _LocalGalleryScreenState extends ConsumerState<LocalGalleryScreen>
     _exitSelection();
     if (selectedAssets.isEmpty) return;
 
+    if (!await _ensureSetup()) return;
     if (!await _ensureSession()) return;
     if (!mounted || !await _configureS3()) return;
     await ref.read(backupManagerProvider.notifier).start(selectedAssets);

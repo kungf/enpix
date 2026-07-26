@@ -208,6 +208,7 @@ class _SetupPasswordDialogState extends State<_SetupPasswordDialog> {
         FilledButton(
           onPressed: () {
             final pw = _pwCtrl.text;
+            final confirm = _confirmCtrl.text;
             final err = _validate();
             if (err != null) {
               setState(() => _errorText = err);
@@ -215,6 +216,10 @@ class _SetupPasswordDialogState extends State<_SetupPasswordDialog> {
             }
             if (pw.isEmpty) {
               setState(() => _errorText = '请输入密码');
+              return;
+            }
+            if (confirm.isEmpty) {
+              setState(() => _errorText = '请再次输入密码以确认');
               return;
             }
             Navigator.pop(context, pw);

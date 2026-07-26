@@ -2,12 +2,9 @@ import 'dart:developer' as developer;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:logging/logging.dart';
 
 import 'app.dart';
-import 'services/crypto/crypto_service.dart';
-import 'services/crypto/credential_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,15 +47,5 @@ void main() async {
     );
   });
 
-  // ── First-run detection ──
-  // A returning user has both a passphrase and S3 configured; anyone missing
-  // means setup is incomplete and we route to the onboarding wizard.
-  final creds =
-      CredentialService(CryptoService(), const FlutterSecureStorage());
-  final hasPassphrase = await creds.hasPassphrase();
-  final hasEndpoint = (await creds.getS3Endpoint())?.isNotEmpty ?? false;
-  final hasBucket = (await creds.getS3Bucket())?.isNotEmpty ?? false;
-  final isFirstRun = !(hasPassphrase && hasEndpoint && hasBucket);
-
-  runApp(ProviderScope(child: EnpixApp(isFirstRun: isFirstRun)));
+  runApp(const ProviderScope(child: EnpixApp()));
 }
