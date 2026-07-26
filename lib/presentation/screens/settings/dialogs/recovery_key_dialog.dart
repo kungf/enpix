@@ -23,8 +23,6 @@ class _RecoveryKeyDialog extends StatefulWidget {
 }
 
 class _RecoveryKeyDialogState extends State<_RecoveryKeyDialog> {
-  bool _confirmed = false;
-
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -35,7 +33,7 @@ class _RecoveryKeyDialogState extends State<_RecoveryKeyDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '请用纸笔抄写以下 24 个单词，并妥善保管。\n\n'
+              '以下是你的 24 个恢复密钥单词，请将其保存在安全位置（如密码管理器）。\n\n'
               '如果你忘记密码，这是恢复数据的唯一方式。',
               style:
                   TextStyle(fontSize: 14, color: context.colors.labelSecondary),
@@ -70,37 +68,6 @@ class _RecoveryKeyDialogState extends State<_RecoveryKeyDialog> {
                 }),
               ),
             ),
-            const SizedBox(height: AppSpacing.lg),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      Clipboard.setData(
-                        ClipboardData(text: widget.words.join(' ')),
-                      );
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('已复制到剪贴板')),
-                      );
-                    },
-                    icon: const Icon(Icons.copy_rounded, size: 16),
-                    label: const Text('复制'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                Checkbox(
-                  value: _confirmed,
-                  onChanged: (v) => setState(() => _confirmed = v ?? false),
-                ),
-                const Expanded(
-                  child: Text('我已用纸笔抄写并妥善保管', style: TextStyle(fontSize: 14)),
-                ),
-              ],
-            ),
           ],
         ),
       ),
@@ -110,8 +77,11 @@ class _RecoveryKeyDialogState extends State<_RecoveryKeyDialog> {
           child: const Text('稍后再说'),
         ),
         FilledButton(
-          onPressed: _confirmed ? () => Navigator.pop(context, true) : null,
-          child: const Text('完成'),
+          onPressed: () {
+            Clipboard.setData(ClipboardData(text: widget.words.join(' ')));
+            Navigator.pop(context, true);
+          },
+          child: const Text('复制'),
         ),
       ],
     );

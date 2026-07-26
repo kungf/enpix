@@ -10,6 +10,7 @@ import 'package:enpix/presentation/screens/settings/dialogs/setup_password_dialo
 import 'package:enpix/presentation/screens/settings/dialogs/unlock_and_reset_dialogs.dart';
 import 'package:enpix/presentation/screens/settings/dialogs/recovery_key_dialog.dart';
 import 'package:enpix/presentation/screens/settings/dialogs/recovery_input_dialog.dart';
+import 'package:enpix/presentation/screens/settings/dialogs/backup_reminder_dialog.dart';
 
 /// Encryption passphrase section — controls the passphrase that protects
 /// end-to-end encrypted cloud photos.
@@ -133,17 +134,29 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
     final cred = ref.read(credentialServiceProvider);
     final pw = await showSetupPasswordDialog(context);
     if (pw == null || pw.isEmpty) return;
+    // Keep the try-catch tight around the crypto operation so that UI
+    // updates and the follow-up backup reminder are not reported as
+    // "setup failed" errors.
     try {
       // setupPassphrase activates the full session (KEK + Master Key) and
       // persists the passphrase for auto-unlock itself.
       await cred.setupPassphrase(pw);
-      if (mounted) setState(() => _hasPassphrase = true);
-      ref.read(sessionTickProvider.notifier).state++;
-      // Double-check against Keychain as a safety net.
-      await _refreshHasPassphrase();
-      _showSnack('加密密码已设置', isError: false);
     } catch (e) {
       _showSnack('设置失败: $e', isError: true);
+      return;
+    }
+    if (mounted) setState(() => _hasPassphrase = true);
+    ref.read(sessionTickProvider.notifier).state++;
+    // Double-check against Keychain as a safety net.
+    await _refreshHasPassphrase();
+    _showSnack('加密密码已设置', isError: false);
+    // Prompt the user to back up the recovery key — the only way to
+    // recover encrypted data if they forget their password.
+    if (mounted) {
+      final shouldBackup = await showBackupReminderDialog(context);
+      if (shouldBackup == true && mounted) {
+        await _backupRecoveryKey();
+      }
     }
   }
 
@@ -244,16 +257,27 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
     final newPw = await showSetupPasswordDialog(context);
     if (newPw == null || newPw.isEmpty) return;
 
+    // Keep the try-catch tight around the crypto operation so that the
+    // follow-up backup reminder is not reported as a "change failed" error.
     try {
       // changePassphrase verifies the old password internally and keeps the
       // session active with the new KEK.
       await cred.changePassphrase(oldPw, newPw);
-      ref.read(sessionTickProvider.notifier).state++;
-      _showSnack('密码已更新', isError: false);
     } on WrongPassphraseException {
       _showSnack('原密码错误', isError: true);
+      return;
     } catch (e) {
       _showSnack('修改失败: $e', isError: true);
+      return;
+    }
+    ref.read(sessionTickProvider.notifier).state++;
+    _showSnack('密码已更新', isError: false);
+    // Remind the user to back up the recovery key if they haven't already.
+    if (mounted) {
+      final shouldBackup = await showBackupReminderDialog(context);
+      if (shouldBackup == true && mounted) {
+        await _backupRecoveryKey();
+      }
     }
   }
 
@@ -269,7 +293,23 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
     // Recovery blob is uploaded to S3 — ensure configuration is loaded.
     final s3Result = await ref.read(s3ConfigServiceProvider).ensureConfigured();
     if (s3Result != S3ConfigResult.configured) {
-      _showSnack('请先在设置中配置 S3 存储', isError: true);
+      if (mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('需要配置 S3 存储'),
+            content: const Text(
+              '恢复密钥需要上传到云端存储。请先在设置中配置 S3 存储信息，然后重新备份。',
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('确定'),
+              ),
+            ],
+          ),
+        );
+      }
       return;
     }
 
