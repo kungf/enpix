@@ -79,7 +79,7 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
                       child: const Text('解锁', style: TextStyle(fontSize: 15)),
                     ),
         ),
-        if (_hasPassphrase && !isActive)
+        if (_hasPassphrase)
           EnpixListTile(
             icon: Icons.key_rounded,
             iconColor: context.colors.brandOrange,
