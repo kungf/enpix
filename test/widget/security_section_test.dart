@@ -100,7 +100,7 @@ void main() {
         expect(find.text('设置'), findsOneWidget);
         expect(find.text('加密密码'), findsOneWidget);
         // No recovery or reset options when passphrase is not set.
-        expect(find.text('找回密码'), findsNothing);
+        expect(find.text('重置密码'), findsNothing);
       },
     );
 
@@ -132,7 +132,7 @@ void main() {
 
         expect(find.text('已设置 · 未解锁'), findsOneWidget);
         expect(find.text('解锁'), findsOneWidget);
-        expect(find.text('找回密码'), findsOneWidget);
+        expect(find.text('重置密码'), findsOneWidget);
       },
     );
   });

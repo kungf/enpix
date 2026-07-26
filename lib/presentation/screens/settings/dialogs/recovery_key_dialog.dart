@@ -57,7 +57,7 @@ class _RecoveryKeyDialogState extends State<_RecoveryKeyDialog> {
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      '${i + 1}. ${widget.words[i]}',
+                      widget.words[i],
                       style: const TextStyle(
                         fontSize: 13,
                         fontFamily: 'monospace',

@@ -32,13 +32,13 @@ class _RecoveryInputDialogState extends State<_RecoveryInputDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('找回密码'),
+      title: const Text('重置密码'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '输入备份的 24 个恢复密钥单词（空格分隔）。恢复后可重新设置密码，云端照片将保持可解密。',
+            '输入备份的 24 个恢复密钥单词，空格分隔，不需要序号。',
             style: TextStyle(
               fontSize: 13,
               color: context.colors.labelSecondary,
@@ -52,7 +52,7 @@ class _RecoveryInputDialogState extends State<_RecoveryInputDialog> {
             enableSuggestions: false,
             decoration: InputDecoration(
               labelText: '恢复密钥',
-              hintText: 'word1 word2 ... word24',
+              hintText: 'abandon ability able ... zoo',
               border: const OutlineInputBorder(),
               helperText: '已输入 $_wordCount / 24 个单词',
             ),
@@ -69,7 +69,7 @@ class _RecoveryInputDialogState extends State<_RecoveryInputDialog> {
           onPressed: _wordCount == 24
               ? () => Navigator.pop(context, _ctrl.text)
               : null,
-          child: const Text('恢复'),
+          child: const Text('重置'),
         ),
       ],
     );

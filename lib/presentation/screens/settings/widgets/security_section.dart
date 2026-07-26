@@ -83,11 +83,11 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
           EnpixListTile(
             icon: Icons.key_rounded,
             iconColor: context.colors.brandOrange,
-            title: '找回密码',
-            subtitle: '忘记密码？用恢复密钥恢复数据并重设密码',
+            title: '重置密码',
+            subtitle: '用恢复密钥重设密码',
             trailing: TextButton(
               onPressed: _recoverWithKey,
-              child: const Text('恢复', style: TextStyle(fontSize: 15)),
+              child: const Text('重置', style: TextStyle(fontSize: 15)),
             ),
           ),
         if (_hasPassphrase && !isActive)
