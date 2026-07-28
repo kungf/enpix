@@ -50,7 +50,7 @@ class S3ConfigService {
     // Stable path prefix — survives password change / recovery, unlike the
     // KEK fingerprint which changes and would orphan uploaded photos.
     final pathPrefix = await _creds.getPathPrefix();
-    final deviceId = await _devices.getDeviceId();
+    final deviceId = await _devices.getDevicePathId();
 
     _s3.configure(
       StorageConfig(

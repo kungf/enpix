@@ -61,14 +61,12 @@ class BackupManager extends StateNotifier<BackupTask> {
       currentFileName: '扫描照片...',
     );
 
-    // Register this device in S3 (idempotent — overwrites if exists).
+    // Set human-readable device ID for S3 key generation.
     try {
-      final deviceId = await _deviceService.getDeviceId();
-      final deviceName = await _deviceService.getDeviceName();
+      final deviceId = await _deviceService.getDevicePathId();
       _s3.setDeviceId(deviceId);
-      await _s3.registerDevice(deviceId, deviceName);
     } catch (e) {
-      _log.warning('Device registration failed (non-fatal): $e');
+      _log.warning('Failed to get device path ID (non-fatal): $e');
     }
 
     // Scan local photos (newest first).
@@ -134,7 +132,7 @@ class BackupManager extends StateNotifier<BackupTask> {
     _cancelled = false;
 
     // Ensure deviceId is set for key generation.
-    final deviceId = await _deviceService.getDeviceId();
+    final deviceId = await _deviceService.getDevicePathId();
     _s3.setDeviceId(deviceId);
 
     // Pre-filter: remove already-uploaded assets.

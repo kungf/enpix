@@ -96,6 +96,10 @@ Map<String, String> auth(
 }
 
 void main() async {
+  if (_ak.isEmpty || _sk.isEmpty) {
+    print('SKIP: S3_ACCESS_KEY and S3_SECRET_KEY not set.');
+    return;
+  }
   int passed = 0, failed = 0;
   void ok(String m) {
     passed++;
@@ -339,5 +343,5 @@ void main() async {
   }
 
   print('\n═══ Upload Pipeline: $passed/$failed ═══');
-  exit(failed > 0 ? 1 : 0);
+  if (failed > 0) throw Exception('$failed upload pipeline test(s) failed');
 }

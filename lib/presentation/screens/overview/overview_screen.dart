@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -461,7 +460,7 @@ class _DeviceStatusCard extends ConsumerWidget {
               isCurrent: false,
             ),
             data: (registry) {
-              if (registry.devices.isEmpty) {
+              if (registry.currentDeviceId.isEmpty) {
                 return const _DeviceRow(
                   icon: Icons.phone_iphone_rounded,
                   name: '暂无设备',
@@ -469,25 +468,11 @@ class _DeviceStatusCard extends ConsumerWidget {
                   isCurrent: false,
                 );
               }
-              return Column(
-                children: [
-                  for (var i = 0; i < registry.devices.length; i++) ...[
-                    if (i > 0) const Divider(indent: 0),
-                    _DeviceRow(
-                      icon: _deviceIcon(
-                        registry.devices[i].deviceId,
-                        registry.currentDeviceId,
-                      ),
-                      name: registry.devices[i].name,
-                      status: registry.devices[i].deviceId ==
-                              registry.currentDeviceId
-                          ? '本机'
-                          : '云端查看',
-                      isCurrent: registry.devices[i].deviceId ==
-                          registry.currentDeviceId,
-                    ),
-                  ],
-                ],
+              return const _DeviceRow(
+                icon: Icons.phone_iphone_rounded,
+                name: '当前设备',
+                status: '',
+                isCurrent: true,
               );
             },
           ),
@@ -496,14 +481,6 @@ class _DeviceStatusCard extends ConsumerWidget {
     );
   }
 
-  IconData _deviceIcon(String deviceId, String currentDeviceId) {
-    if (deviceId == currentDeviceId) {
-      return defaultTargetPlatform == TargetPlatform.iOS
-          ? Icons.phone_iphone_rounded
-          : Icons.phone_android_rounded;
-    }
-    return Icons.devices_rounded;
-  }
 }
 
 class _DeviceRow extends StatelessWidget {

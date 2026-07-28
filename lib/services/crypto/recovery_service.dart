@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'dart:typed_data';
+
 import 'package:bip39/bip39.dart' as bip39;
 import 'package:logging/logging.dart';
+
 import 'package:enpix/services/crypto/crypto_service.dart';
 import 'package:enpix/services/storage/s3_service.dart';
 
@@ -8,11 +11,12 @@ import 'package:enpix/services/storage/s3_service.dart';
 /// when they forget their password.
 ///
 /// A recovery key is a random 256-bit value, shown to the user as a
-/// 24-word BIP-39 mnemonic.  It encrypts (wraps) the Master Key and
-/// the wrapped form is stored on S3.  On password recovery the user
-/// provides the mnemonic, which unwraps the Master Key, restoring
-/// full access to all encrypted data.
+/// 24-word BIP-39 mnemonic. It encrypts (wraps) the Master Key and the
+/// wrapped form is stored on S3 at a fixed path (enpix/.sys/recovery),
+/// so it can be found on any device without relying on Keychain data.
 class RecoveryService {
+  static const _recoveryPath = 'enpix/.sys/recovery';
+
   final Logger _log = Logger('RecoveryService');
   final CryptoService _crypto;
   final S3Service _s3;
@@ -22,15 +26,10 @@ class RecoveryService {
   /// Generate a new recovery key and set it up:
   /// 1. Generate random Recovery Key
   /// 2. Wrap Master Key with Recovery Key
-  /// 3. Upload wrapped Master Key to S3
+  /// 3. Upload wrapped Master Key to S3 at enpix/.sys/recovery
   /// 4. Return the mnemonic for the user to write down
-  ///
-  /// [pathPrefix] is the stable S3 path prefix from
-  /// [CredentialService.getPathPrefix] — it survives password changes, so
-  /// the recovery blob stays findable after a reset.
   Future<String> setupRecovery({
     required Uint8List masterKey,
-    required String pathPrefix,
   }) async {
     _log.info('Setting up recovery key...');
 
@@ -40,15 +39,18 @@ class RecoveryService {
     // 2. Wrap master key with recovery key
     final wrappedMk = await _crypto.wrapKey(masterKey, recoveryKey);
 
-    // 3. Upload to S3
-    final s3Key = _makeRecoveryKey(pathPrefix);
+    // 3. Upload to S3 at fixed path
+    final payload = jsonEncode({
+      'v': 1,
+      'wrapped_master_key': CryptoService.b64Encode(wrappedMk),
+    });
     await _s3.putObject(
-      s3Key,
-      wrappedMk,
-      contentType: 'application/octet-stream',
+      _recoveryPath,
+      Uint8List.fromList(utf8.encode(payload)),
+      contentType: 'application/json',
     );
 
-    _log.info('Recovery key uploaded to S3');
+    _log.info('Recovery key uploaded to $_recoveryPath');
 
     // 4. Convert to mnemonic
     final mnemonic = _recoveryKeyToMnemonic(recoveryKey);
@@ -60,30 +62,44 @@ class RecoveryService {
   }
 
   /// Recover the Master Key from a mnemonic provided by the user.
-  /// Returns the decrypted Master Key, or throws if the mnemonic is invalid
-  /// or the S3 object is missing.
-  ///
-  /// [pathPrefix] is the stable S3 path prefix (see [setupRecovery]).
+  /// Downloads the wrapped Master Key from enpix/.sys/recovery and
+  /// unwraps it with the parsed recovery key.
   Future<Uint8List> recoverFromMnemonic({
     required String mnemonic,
-    required String pathPrefix,
   }) async {
     _log.info('Recovering from mnemonic...');
 
     // 1. Parse mnemonic → recovery key
     final recoveryKey = _mnemonicToRecoveryKey(mnemonic);
 
-    // 2. Download wrapped master key from S3
-    final s3Key = _makeRecoveryKey(pathPrefix);
-    final Uint8List wrappedMk;
+    // 2. Download recovery blob from S3
+    final Uint8List payload;
     try {
-      wrappedMk = await _s3.getObject(s3Key);
+      payload = await _s3.getObject(_recoveryPath);
     } on Exception catch (e) {
       _crypto.secureFree(recoveryKey);
       throw RecoveryException('无法从 S3 下载恢复数据: $e');
     }
 
-    // 3. Unwrap master key
+    // 3. Parse JSON — switch on type to avoid TypeError (Error, not Exception).
+    final Map<String, dynamic> json;
+    final decoded = jsonDecode(utf8.decode(payload));
+    switch (decoded) {
+      case Map<String, dynamic> map:
+        json = map;
+      default:
+        _crypto.secureFree(recoveryKey);
+        throw const RecoveryException('恢复数据格式错误');
+    }
+
+    final wrappedMkB64 = json['wrapped_master_key'] as String?;
+    if (wrappedMkB64 == null) {
+      _crypto.secureFree(recoveryKey);
+      throw const RecoveryException('恢复数据不完整');
+    }
+    final wrappedMk = CryptoService.b64Decode(wrappedMkB64);
+
+    // 4. Unwrap master key
     final Uint8List masterKey;
     try {
       masterKey = await _crypto.unwrapKey(wrappedMk, recoveryKey);
@@ -99,9 +115,8 @@ class RecoveryService {
   }
 
   /// Check if recovery metadata exists on S3.
-  Future<bool> hasRecoveryMetadata(String pathPrefix) async {
-    final s3Key = _makeRecoveryKey(pathPrefix);
-    return _s3.objectExists(s3Key);
+  Future<bool> hasRecoveryMetadata() async {
+    return _s3.objectExists(_recoveryPath);
   }
 
   /// Convert a recovery key (32 bytes) to a 24-word BIP-39 mnemonic.
@@ -122,14 +137,6 @@ class RecoveryService {
       bytes[i] = int.parse(hex.substring(i * 2, i * 2 + 2), radix: 16);
     }
     return bytes;
-  }
-
-  /// S3 path for recovery metadata.
-  String _makeRecoveryKey(String kekFingerprint) {
-    final prefix = kekFingerprint.length >= 12
-        ? kekFingerprint.substring(0, 12)
-        : 'shared';
-    return '$prefix/.recovery/wrapped_master_key.bin';
   }
 }
 

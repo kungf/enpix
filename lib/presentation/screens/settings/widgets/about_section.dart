@@ -3,11 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
-import 'package:enpix/services/providers.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_section.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_list_tile.dart';
 
-/// About section — app version and KEK fingerprint.
+/// About section — app version and tech info.
 class AboutSection extends ConsumerStatefulWidget {
   const AboutSection({super.key});
 
@@ -17,14 +16,6 @@ class AboutSection extends ConsumerStatefulWidget {
 
 class _AboutSectionState extends ConsumerState<AboutSection> {
   bool _showTechInfo = false;
-  Future<String?>? _cachedFingerprint;
-
-  @override
-  void initState() {
-    super.initState();
-    _cachedFingerprint =
-        ref.read(credentialServiceProvider).getKekFingerprint();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,15 +29,6 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
             snap.data?.version ?? '-',
             Icons.info_outline_rounded,
             context.colors.brandBlue,
-          ),
-        ),
-        FutureBuilder<String?>(
-          future: _cachedFingerprint,
-          builder: (_, s) => _infoTile(
-            'KEK 指纹',
-            s.data?.substring(0, 12) ?? '—',
-            Icons.fingerprint_rounded,
-            context.colors.brandGray,
           ),
         ),
         const Divider(indent: 52),

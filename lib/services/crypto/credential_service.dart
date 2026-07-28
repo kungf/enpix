@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:logging/logging.dart';
@@ -173,22 +174,103 @@ class CredentialService {
     return kek;
   }
 
-  /// The stable S3 path prefix (12 chars, or 'shared' when unset).
-  ///
-  /// Existing installs that predate this key are migrated lazily: their
-  /// data lives under the KEK-fingerprint prefix, so that value is adopted
-  /// and persisted. Callers must use this instead of [getKekFingerprint]
-  /// for any S3 path construction.
-  Future<String> getPathPrefix() async {
-    final existing = await _storage.read(key: _pathPrefixKey);
-    if (existing != null) return existing;
-    final legacy = await _storage.read(key: _kekFingerprintKey);
-    if (legacy != null && legacy.length >= 12) {
-      final prefix = legacy.substring(0, 12);
-      await _storage.write(key: _pathPrefixKey, value: prefix);
-      return prefix;
+  /// The S3 path prefix — always empty (prefix configuration removed).
+  Future<String> getPathPrefix() async => '';
+
+  /// The data that should be uploaded to enpix/.sys/keystore so the user
+  /// can recover with their password on a new device.
+  Future<Uint8List> buildKeystorePayload() async {
+    final salt = await _storage.read(key: _kekSaltKey);
+    final wrappedMk = await _storage.read(key: _wrappedMasterKeyKey);
+    if (salt == null || wrappedMk == null) {
+      throw StateError('Keystore data not available — set up passphrase first');
     }
-    return 'shared';
+    final memory = await _storage.read(key: _argon2MemoryKey);
+    final ops = await _storage.read(key: _argon2OpsKey);
+    final json = jsonEncode({
+      'v': 1,
+      'salt': salt,
+      'wrapped_master_key': wrappedMk,
+      if (memory != null && int.tryParse(memory) != null)
+        'argon2_memory': int.parse(memory),
+      if (ops != null && int.tryParse(ops) != null)
+        'argon2_ops': int.parse(ops),
+    });
+    return Uint8List.fromList(utf8.encode(json));
+  }
+
+  /// Restore the Master Key from a keystore payload (downloaded from
+  /// enpix/.sys/keystore). The XChaCha20-Poly1305 unwrap implicitly
+  /// verifies the password — a wrong password produces a MAC failure.
+  Future<Uint8List> restoreFromKeystore(
+    String password,
+    Uint8List payload,
+  ) async {
+    final Map<String, dynamic> json;
+    try {
+      final decoded = jsonDecode(utf8.decode(payload));
+      if (decoded is! Map<String, dynamic>) {
+        throw const StorageException(message: 'Keystore data is malformed');
+      }
+      json = decoded;
+    } on FormatException catch (e) {
+      throw StorageException(message: 'Keystore data is not valid JSON: $e');
+    }
+
+    final saltB64 = json['salt'] as String?;
+    final wrappedMkB64 = json['wrapped_master_key'] as String?;
+    if (saltB64 == null || wrappedMkB64 == null) {
+      throw const StorageException(message: 'Keystore data is incomplete');
+    }
+
+    final salt = CryptoService.b64Decode(saltB64);
+    final wrappedMk = CryptoService.b64Decode(wrappedMkB64);
+
+    // Use adaptive Argon2id params if available, fall back to legacy fixed
+    // params for keystores uploaded before adaptive params were included.
+    final memory = json['argon2_memory'] as int?;
+    final ops = json['argon2_ops'] as int?;
+
+    final Uint8List kek;
+    if (memory != null && ops != null) {
+      kek = await _crypto.deriveKekWithParams(
+        password,
+        salt,
+        memory: memory,
+        iterations: ops,
+      );
+    } else {
+      kek = await _crypto.deriveKek(password, salt);
+    }
+
+    final Uint8List masterKey;
+    try {
+      masterKey = await _crypto.unwrapKey(wrappedMk, kek);
+    } on Exception catch (_) {
+      _crypto.secureFree(kek);
+      throw const WrongPassphraseException();
+    }
+
+    // Persist everything to Keychain so the session survives restarts.
+    final fingerprint = await _crypto.computeFingerprint(kek);
+    await _storage.write(key: _kekSaltKey, value: saltB64);
+    await _storage.write(key: _kekKey, value: CryptoService.b64Encode(kek));
+    await _storage.write(key: _kekFingerprintKey, value: fingerprint);
+    await _storage.write(key: _hasPassphraseKey, value: 'true');
+    await _storage.write(key: _wrappedMasterKeyKey, value: wrappedMkB64);
+    await _storage.write(key: _savedPassphraseKey, value: password);
+    if (memory != null) {
+      await _storage.write(key: _argon2MemoryKey, value: memory.toString());
+    }
+    if (ops != null) {
+      await _storage.write(key: _argon2OpsKey, value: ops.toString());
+    }
+
+    startSession(kek);
+    _sessionMasterKey = masterKey;
+
+    _log.info('Session restored from keystore');
+    return masterKey;
   }
 
   // ── KEK Unlock ───────────────────────────────────────────────
@@ -258,10 +340,56 @@ class CredentialService {
   /// Whether the session has a Master Key (either from normal unlock or recovery).
   bool get hasMasterKey => _sessionActive && _sessionMasterKey != null;
 
-  /// Try to auto-unlock using the saved passphrase from Keychain.
-  /// Returns true if unlock succeeded, false if no saved passphrase or unlock failed.
+  /// Load the KEK directly from Keychain — no Argon2id derivation needed.
+  /// Verifies integrity via fingerprint, then unwraps the Master Key.
+  /// Returns true if a valid session was loaded.
+  Future<bool> _loadSessionFromKeychain() async {
+    try {
+      final kekB64 = await _storage.read(key: _kekKey);
+      final fingerprint = await _storage.read(key: _kekFingerprintKey);
+      if (kekB64 == null || fingerprint == null) return false;
+
+      final kek = CryptoService.b64Decode(kekB64);
+
+      // Verify KEK integrity (fingerprint must match).
+      final computed = await _crypto.computeFingerprint(kek);
+      if (computed != fingerprint) {
+        _crypto.secureFree(kek);
+        return false;
+      }
+
+      // Unwrap Master Key.
+      final wrappedMkB64 = await _storage.read(key: _wrappedMasterKeyKey);
+      Uint8List? masterKey;
+      if (wrappedMkB64 != null) {
+        final wrappedMk = CryptoService.b64Decode(wrappedMkB64);
+        masterKey = await _crypto.unwrapKey(wrappedMk, kek);
+      }
+
+      startSession(kek);
+      _sessionMasterKey = masterKey;
+      _log.info('Session loaded from Keychain (fast path)');
+      return true;
+    } on Exception catch (e) {
+      _log.warning('Fast session load failed: $e');
+      return false;
+    }
+  }
+
+  /// Try to auto-unlock the session on cold start.
+  ///
+  /// Fast path: reads KEK directly from Keychain (zero crypto cost).
+  /// Slow path: re-derives KEK from saved passphrase via Argon2id (runs
+  /// in a background isolate, only needed when Keychain data is corrupt).
+  ///
+  /// Returns true if unlock succeeded.
   Future<bool> autoUnlock() async {
     if (isSessionActive) return true;
+
+    // Fast path: load KEK directly from Keychain.
+    if (await _loadSessionFromKeychain()) return true;
+
+    // Slow path: re-derive KEK from saved passphrase.
     try {
       final passphrase = await _storage.read(key: _savedPassphraseKey);
       if (passphrase == null) return false;

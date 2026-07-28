@@ -3,15 +3,16 @@ import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/theme/app_spacing.dart';
 
 /// Dialog to unlock KEK session with passphrase.
-Future<String?> showUnlockDialog(BuildContext context) {
+Future<String?> showUnlockDialog(BuildContext context, {String? title}) {
   return showDialog<String>(
     context: context,
-    builder: (_) => const _UnlockDialog(),
+    builder: (_) => _UnlockDialog(title: title),
   );
 }
 
 class _UnlockDialog extends StatefulWidget {
-  const _UnlockDialog();
+  final String? title;
+  const _UnlockDialog({this.title});
   @override
   State<_UnlockDialog> createState() => _UnlockDialogState();
 }
@@ -29,7 +30,7 @@ class _UnlockDialogState extends State<_UnlockDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('输入密码'),
+      title: Text(widget.title ?? '输入密码'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

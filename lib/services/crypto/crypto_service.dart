@@ -14,6 +14,10 @@ class CryptoService {
 
   /// Derive KEK with specific Argon2id params (used for adaptive probing
   /// and for reading old entries with legacy params).
+  ///
+  /// Cold starts use [CredentialService._loadSessionFromKeychain] which
+  /// reads the KEK directly from Keychain — this method is only called
+  /// for passphrase setup/change or when Keychain data is corrupted.
   Future<Uint8List> deriveKekWithParams(
     String passphrase,
     Uint8List salt, {

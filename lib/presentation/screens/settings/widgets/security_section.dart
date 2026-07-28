@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 import 'package:enpix/core/theme/context_ext.dart';
 import 'package:enpix/core/errors/storage_exception.dart';
 import 'package:enpix/services/providers.dart';
@@ -11,6 +15,10 @@ import 'package:enpix/presentation/screens/settings/dialogs/unlock_and_reset_dia
 import 'package:enpix/presentation/screens/settings/dialogs/recovery_key_dialog.dart';
 import 'package:enpix/presentation/screens/settings/dialogs/recovery_input_dialog.dart';
 import 'package:enpix/presentation/screens/settings/dialogs/backup_reminder_dialog.dart';
+
+/// Fixed S3 paths under the system prefix.
+const _keystorePath = 'enpix/.sys/keystore';
+const _warningPath = 'enpix/.sys/WARNING';
 
 /// Encryption passphrase section — controls the passphrase that protects
 /// end-to-end encrypted cloud photos.
@@ -30,6 +38,7 @@ class SecuritySection extends ConsumerStatefulWidget {
 }
 
 class _SecuritySectionState extends ConsumerState<SecuritySection> {
+  static final _log = Logger('SecuritySection');
   bool _hasPassphrase = false;
 
   @override
@@ -70,9 +79,22 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
                   child: const Text('修改', style: TextStyle(fontSize: 15)),
                 )
               : !_hasPassphrase
-                  ? FilledButton.tonal(
-                      onPressed: _setupPassphrase,
-                      child: const Text('设置'),
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextButton(
+                          onPressed: _restoreFromCloud,
+                          child: const Text(
+                            '从云端恢复',
+                            style: TextStyle(fontSize: 15),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton.tonal(
+                          onPressed: _setupPassphrase,
+                          child: const Text('设置'),
+                        ),
+                      ],
                     )
                   : TextButton(
                       onPressed: _unlock,
@@ -150,6 +172,8 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
     // Double-check against Keychain as a safety net.
     await _refreshHasPassphrase();
     _showSnack('加密密码已设置', isError: false);
+    // Sync keystore to S3 so the user can recover on a new device.
+    _syncKeystore();
     // Prompt the user to back up the recovery key — the only way to
     // recover encrypted data if they forget their password.
     if (mounted) {
@@ -169,6 +193,8 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
     try {
       await cred.unlockWithPassphrase(pw);
       ref.read(sessionTickProvider.notifier).state++;
+      // Ensure keystore is synced to S3 (migration + keep current).
+      _syncKeystore();
     } on WrongPassphraseException {
       _showSnack('密码错误', isError: true);
     } on Exception catch (e) {
@@ -204,10 +230,8 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
     }
 
     try {
-      final prefix = await cred.getPathPrefix();
       final masterKey = await recovery.recoverFromMnemonic(
         mnemonic: mnemonic,
-        pathPrefix: prefix,
       );
       cred.restoreWithRecoveryKey(masterKey);
     } on Exception catch (e) {
@@ -231,6 +255,8 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
       await cred.resetPassphrase(newPw);
       if (mounted) setState(() => _hasPassphrase = true);
       ref.read(sessionTickProvider.notifier).state++;
+      // Re-sync keystore with the new KEK.
+      _syncKeystore();
       if (mounted) {
         messenger.showSnackBar(
           SnackBar(
@@ -272,6 +298,8 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
     }
     ref.read(sessionTickProvider.notifier).state++;
     _showSnack('密码已更新', isError: false);
+    // Re-sync keystore with the new KEK.
+    _syncKeystore();
     // Remind the user to back up the recovery key if they haven't already.
     if (mounted) {
       final shouldBackup = await showBackupReminderDialog(context);
@@ -314,10 +342,8 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
     }
 
     try {
-      final prefix = await cred.getPathPrefix();
       final mnemonic = await recovery.setupRecovery(
         masterKey: cred.sessionMasterKey!,
-        pathPrefix: prefix,
       );
 
       if (mounted) {
@@ -349,6 +375,64 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
       _showSnack('加密数据已重置，请重新设置密码', isError: false);
     } catch (e) {
       _showSnack('重置失败: $e', isError: true);
+    }
+  }
+
+  /// Upload keystore to S3 so the user can recover with their password on a
+  /// new device. Best-effort — failures are logged but do not block the user.
+  void _syncKeystore() {
+    final cred = ref.read(credentialServiceProvider);
+    final s3 = ref.read(s3ServiceProvider);
+    // Fire-and-forget — keystore sync must not block the UI.
+    Future.microtask(() async {
+      try {
+        final payload = await cred.buildKeystorePayload();
+        await s3.putObject(_keystorePath, payload);
+        // Also upload WARNING file.
+        await s3.putObject(
+          _warningPath,
+          Uint8List.fromList(utf8.encode(
+            '⚠️ 请勿删除此目录下的文件\n'
+            '这些是数据恢复凭证。删除后将无法通过密码或恢复密钥找回加密数据。',
+          ),
+        ),
+        );
+        _log.info('Keystore synced to S3');
+      } on Exception catch (e) {
+        _log.warning('Keystore sync failed (non-fatal): $e');
+      }
+    });
+  }
+
+  /// Restore the Master Key from the keystore on S3 using the password.
+  /// This is the entry point for existing users setting up a new device.
+  Future<void> _restoreFromCloud() async {
+    final cred = ref.read(credentialServiceProvider);
+    final s3 = ref.read(s3ServiceProvider);
+
+    final s3Result = await ref.read(s3ConfigServiceProvider).ensureConfigured();
+    if (s3Result != S3ConfigResult.configured) {
+      _showSnack('请先配置 S3 存储', isError: true);
+      return;
+    }
+
+    if (!mounted) return;
+    final pw = await showUnlockDialog(
+      context,
+      title: '输入密码以从云端恢复',
+    );
+    if (pw == null || pw.isEmpty) return;
+
+    try {
+      final payload = await s3.getObject(_keystorePath);
+      await cred.restoreFromKeystore(pw, payload);
+      if (mounted) setState(() => _hasPassphrase = true);
+      ref.read(sessionTickProvider.notifier).state++;
+      _showSnack('已从云端恢复', isError: false);
+    } on WrongPassphraseException {
+      _showSnack('密码错误', isError: true);
+    } on Exception catch (e) {
+      _showSnack('恢复失败: $e', isError: true);
     }
   }
 }

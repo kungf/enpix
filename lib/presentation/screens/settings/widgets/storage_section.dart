@@ -8,6 +8,7 @@ import 'package:enpix/services/providers.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_section.dart';
 import 'package:enpix/presentation/shared/widgets/enpix_progress.dart';
 
+/// Characters safe for S3 object key paths.
 /// S3 storage configuration — endpoint, bucket, credentials, connection test.
 class StorageSection extends ConsumerStatefulWidget {
   const StorageSection({super.key});
@@ -21,13 +22,21 @@ class _StorageSectionState extends ConsumerState<StorageSection> {
   final _rgCtrl = TextEditingController();
   final _akCtrl = TextEditingController();
   final _skCtrl = TextEditingController();
+  final _skFocusNode = FocusNode();
   bool? _testResult;
   bool _testing = false;
   bool _obscureSk = true;
 
+  /// Whether the Secret Key field is showing the placeholder (existing SK
+  /// from Keychain rather than user-typed text).
+  bool _skIsPlaceholder = false;
+
+  static const _skPlaceholder = '••••••••••••';
+
   @override
   void initState() {
     super.initState();
+    _skFocusNode.addListener(_onSkFocusChange);
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
@@ -38,7 +47,27 @@ class _StorageSectionState extends ConsumerState<StorageSection> {
     _rgCtrl.dispose();
     _akCtrl.dispose();
     _skCtrl.dispose();
+    _skFocusNode.dispose();
     super.dispose();
+  }
+
+  void _onSkFocusChange() {
+    if (_skFocusNode.hasFocus && _skIsPlaceholder) {
+      _skCtrl.clear();
+      setState(() {
+        _skIsPlaceholder = false;
+        _obscureSk = true;
+      });
+    } else if (!_skFocusNode.hasFocus &&
+        _skCtrl.text.isEmpty &&
+        !_skIsPlaceholder) {
+      // User left the field empty — restore placeholder if SK exists.
+      _skCtrl.text = _skPlaceholder;
+      setState(() {
+        _skIsPlaceholder = true;
+        _obscureSk = false;
+      });
+    }
   }
 
   Future<void> _load() async {
@@ -46,11 +75,18 @@ class _StorageSectionState extends ConsumerState<StorageSection> {
     final ep = await cred.getS3Endpoint();
     final bk = await cred.getS3Bucket();
     final rg = await cred.getS3Region();
+    final s3Creds = await cred.loadS3Credentials();
     if (mounted) {
       setState(() {
         if (ep != null) _epCtrl.text = ep;
         if (bk != null) _bkCtrl.text = bk;
         if (rg != null) _rgCtrl.text = rg;
+        if (s3Creds != null) {
+          _akCtrl.text = s3Creds.accessKey;
+          _skCtrl.text = _skPlaceholder;
+          _skIsPlaceholder = true;
+          _obscureSk = false;
+        }
       });
     }
   }
@@ -68,6 +104,17 @@ class _StorageSectionState extends ConsumerState<StorageSection> {
       _testResult = null;
     });
     try {
+      var ak = _akCtrl.text.trim();
+      var sk = _skCtrl.text.trim();
+      // Resolve placeholder to the real SK from Keychain.
+      if (_skIsPlaceholder && sk == _skPlaceholder) {
+        final cred = ref.read(credentialServiceProvider);
+        final existing = await cred.loadS3Credentials();
+        if (existing != null) {
+          ak = existing.accessKey;
+          sk = existing.secretKey;
+        }
+      }
       ref.read(s3ServiceProvider).configure(
             StorageConfig(
               endpointUrl: ep,
@@ -75,8 +122,8 @@ class _StorageSectionState extends ConsumerState<StorageSection> {
               region: _rgCtrl.text.trim().isNotEmpty
                   ? _rgCtrl.text.trim()
                   : 'default',
-              accessKey: _akCtrl.text.trim(),
-              secretKey: _skCtrl.text.trim(),
+              accessKey: ak,
+              secretKey: sk,
               updatedAt: DateTime.now().millisecondsSinceEpoch,
             ),
           );
@@ -124,9 +171,17 @@ class _StorageSectionState extends ConsumerState<StorageSection> {
     await cred.saveS3Endpoint(ep);
     await cred.saveS3Bucket(bk);
     await cred.saveS3Region(rg.isNotEmpty ? rg : 'default');
-    final ak = _akCtrl.text.trim();
-    final sk = _skCtrl.text.trim();
+    var ak = _akCtrl.text.trim();
+    var sk = _skCtrl.text.trim();
     if (!mounted) return;
+    // Preserve existing SK when the placeholder was left unchanged.
+    if (_skIsPlaceholder && sk == _skPlaceholder) {
+      final existing = await cred.loadS3Credentials();
+      if (existing != null) {
+        ak = existing.accessKey;
+        sk = existing.secretKey;
+      }
+    }
     if (ak.isEmpty || sk.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Access Key 和 Secret Key 不能为空')),
@@ -186,6 +241,7 @@ class _StorageSectionState extends ConsumerState<StorageSection> {
               const SizedBox(height: AppSpacing.md),
               TextField(
                 controller: _skCtrl,
+                focusNode: _skFocusNode,
                 obscureText: _obscureSk,
                 decoration: InputDecoration(
                   labelText: 'Secret Key',

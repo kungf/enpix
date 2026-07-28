@@ -31,7 +31,7 @@ class S3Service {
     // HTTP transport. S3 only compresses text/xml, never binary content.
   }
   StorageConfig? _config;
-  String? _kekFingerprint;
+  String? _pathPrefix;
   String? _deviceId;
 
   void configure(
@@ -41,7 +41,7 @@ class S3Service {
   }) {
     _log.info('Configuring S3: ${config.endpointUrl} / ${config.bucketName}');
     _config = config;
-    _kekFingerprint = kekFingerprint;
+    _pathPrefix = kekFingerprint;
     _deviceId = deviceId;
     _dio.options.baseUrl = config.endpointUrl;
   }
@@ -55,23 +55,33 @@ class S3Service {
 
   // ── Path helpers ──
 
+  /// Build the base S3 key prefix: enpix/{prefix}{deviceId}
+  /// - prefix: user-configured subfolder, empty by default
+  /// - deviceId: human-readable "{name}-{model}" (e.g. "wyang-iphone8")
+  /// - If prefix is non-empty and doesn't end with "/", a "/" is inserted.
+  static String _keyBase(String prefix, String? deviceId) {
+    final prefixSeg = prefix.isEmpty
+        ? ''
+        : (prefix.endsWith('/') ? prefix : '$prefix/');
+    final device = deviceId ?? 'unknown-device';
+    return 'enpix/$prefixSeg$device';
+  }
+
   static String generateKey(
-    String fingerprint,
+    String prefix,
     String fileId,
     DateTime createdAt, {
     String? deviceId,
   }) {
-    final prefix =
-        fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared';
+    final base = _keyBase(prefix, deviceId);
     final date =
         '${createdAt.year}${createdAt.month.toString().padLeft(2, '0')}${createdAt.day.toString().padLeft(2, '0')}';
-    final device = deviceId ?? 'default';
-    return '$prefix/$device/files/$date/$fileId.enc';
+    return '$base/files/$date/$fileId.enc';
   }
 
   String makeKey(String fileId, DateTime createdAt) {
     return generateKey(
-      _kekFingerprint ?? 'shared',
+      _pathPrefix ?? '',
       fileId,
       createdAt,
       deviceId: _deviceId,
@@ -80,22 +90,20 @@ class S3Service {
 
   /// Generate S3 key for a thumbnail.
   static String generateThumbKey(
-    String fingerprint,
+    String prefix,
     String fileId,
     DateTime createdAt, {
     String? deviceId,
   }) {
-    final prefix =
-        fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared';
+    final base = _keyBase(prefix, deviceId);
     final date =
         '${createdAt.year}${createdAt.month.toString().padLeft(2, '0')}${createdAt.day.toString().padLeft(2, '0')}';
-    final device = deviceId ?? 'default';
-    return '$prefix/$device/thumbs/$date/${fileId}_thumb.enc';
+    return '$base/thumbs/$date/${fileId}_thumb.enc';
   }
 
   String makeThumbKey(String fileId, DateTime createdAt) {
     return generateThumbKey(
-      _kekFingerprint ?? 'shared',
+      _pathPrefix ?? '',
       fileId,
       createdAt,
       deviceId: _deviceId,
@@ -104,19 +112,17 @@ class S3Service {
 
   /// Generate S3 key for debug/diagnostic files.
   static String generateDebugKey(
-    String fingerprint,
+    String prefix,
     String fileName, {
     String? deviceId,
   }) {
-    final prefix =
-        fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared';
-    final device = deviceId ?? 'default';
-    return '$prefix/$device/debug/$fileName';
+    final base = _keyBase(prefix, deviceId);
+    return '$base/debug/$fileName';
   }
 
   String makeDebugKey(String fileName) {
     return generateDebugKey(
-      _kekFingerprint ?? 'shared',
+      _pathPrefix ?? '',
       fileName,
       deviceId: _deviceId,
     );
@@ -288,52 +294,6 @@ class S3Service {
     } catch (e) {
       throw StorageException(message: 'DELETE failed: $key — $e', cause: e);
     }
-  }
-
-  // ── Device registry ──
-
-  Future<void> registerDevice(String deviceId, String deviceName) async {
-    final fingerprint = _kekFingerprint ?? 'shared';
-    final fpPrefix =
-        fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared';
-    final key = '$fpPrefix/devices/$deviceId.json';
-    final json = jsonEncode({
-      'name': deviceName,
-      'registeredAt': DateTime.now().toUtc().toIso8601String(),
-    });
-    await putObject(
-      key,
-      Uint8List.fromList(utf8.encode(json)),
-      contentType: 'application/json',
-    );
-    _log.info('Registered device: $deviceId ($deviceName)');
-  }
-
-  /// List all registered devices under this fingerprint.
-  /// Returns map of deviceId → DeviceInfo.
-  Future<Map<String, DeviceInfo>> listDevices() async {
-    final fingerprint = _kekFingerprint ?? 'shared';
-    final fpPrefix =
-        fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared';
-    final prefix = '$fpPrefix/devices/';
-    final objects = await listObjects(prefix);
-
-    final devices = <String, DeviceInfo>{};
-    for (final obj in objects) {
-      if (!obj.key.endsWith('.json')) continue;
-      final deviceId = obj.key.split('/').last.replaceAll('.json', '');
-      try {
-        final bytes = await getObject(obj.key);
-        final json = utf8.decode(bytes);
-        final map = jsonDecode(json) as Map<String, dynamic>;
-        final name = map['name'] as String? ?? deviceId;
-        devices[deviceId] = DeviceInfo(deviceId: deviceId, name: name);
-      } catch (e) {
-        _log.warning('Failed to read device info for $deviceId: $e');
-        devices[deviceId] = DeviceInfo(deviceId: deviceId, name: deviceId);
-      }
-    }
-    return devices;
   }
 
   /// List objects under [prefix]. Returns all matching objects (paginated internally).
@@ -524,12 +484,4 @@ class S3Object {
     required this.size,
     required this.lastModified,
   });
-}
-
-/// A registered device in the S3 device registry.
-class DeviceInfo {
-  final String deviceId;
-  final String name;
-
-  const DeviceInfo({required this.deviceId, required this.name});
 }

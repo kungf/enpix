@@ -24,7 +24,7 @@ void main() async {
     print(
       'Example: S3_ACCESS_KEY=minioadmin S3_SECRET_KEY=minioadmin dart run ...',
     );
-    exit(1);
+    return;
   }
   int passed = 0, failed = 0;
   void ok(String m) {
@@ -328,5 +328,5 @@ void main() async {
   }
 
   print('\n═══ S3 Client: $passed/$failed ═══');
-  exit(failed > 0 ? 1 : 0);
+  if (failed > 0) throw Exception('$failed S3 client test(s) failed');
 }

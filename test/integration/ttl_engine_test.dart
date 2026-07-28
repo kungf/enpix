@@ -6,7 +6,6 @@
 library;
 
 import 'dart:convert';
-import 'dart:io';
 import 'package:enpix/services/ttl/ttl_config.dart';
 
 void main() async {
@@ -372,5 +371,5 @@ void main() async {
   }
 
   print('\n═══ TTL Engine: $passed/$failed ═══');
-  exit(failed > 0 ? 1 : 0);
+  if (failed > 0) throw Exception('$failed TTL engine test(s) failed');
 }
