@@ -4,6 +4,11 @@ import 'package:logging/logging.dart';
 import '../crypto/crypto_service.dart';
 import '../storage/s3_service.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/utils/retry.dart';
+
+/// Total attempts for a single S3 PUT: 1 initial + 3 retries,
+/// backing off 1s / 2s / 4s (±25% jitter) between attempts.
+const int kUploadMaxAttempts = 4;
 
 class UploadService {
   final Logger _log = Logger('UploadService');
@@ -97,19 +102,27 @@ class UploadService {
 
     if (isCancelled()) throw const UploadCancelledException();
 
-    // 8. Upload original to S3
+    // 8. Upload original to S3 (retries transient network/server errors)
     try {
       _log.info('PUT to S3: $key (${encrypted.length} bytes)');
-      await _s3.putObject(
-        key,
-        encrypted,
-        metadata: {
-          'dek': CryptoService.b64Encode(wrappedDek),
-          'nonce': CryptoService.b64Encode(nonce),
-          'hash': hashHex,
-          'filename': fileName,
-        },
-        contentType: mimeType,
+      await withRetry(
+        () => _s3.putObject(
+          key,
+          encrypted,
+          metadata: {
+            'dek': CryptoService.b64Encode(wrappedDek),
+            'nonce': CryptoService.b64Encode(nonce),
+            'hash': hashHex,
+            'filename': fileName,
+          },
+          contentType: mimeType,
+        ),
+        isRetryable: S3Service.isRetryable,
+        maxAttempts: kUploadMaxAttempts,
+        onRetry: (attempt, error, delay) => _log.warning(
+          'PUT $key attempt $attempt failed, '
+          'retry in ${delay.inMilliseconds}ms: $error',
+        ),
       );
     } catch (e) {
       _log.severe('S3 upload failed: $e');
@@ -132,14 +145,22 @@ class UploadService {
         _log.info(
           'PUT thumb to S3: $thumbKey (${encryptedThumb.length} bytes)',
         );
-        await _s3.putObject(
-          thumbKey,
-          encryptedThumb,
-          metadata: {
-            'dek': CryptoService.b64Encode(wrappedThumbDek),
-            'nonce': CryptoService.b64Encode(thumbNonce),
-          },
-          contentType: 'image/jpeg',
+        await withRetry(
+          () => _s3.putObject(
+            thumbKey,
+            encryptedThumb,
+            metadata: {
+              'dek': CryptoService.b64Encode(wrappedThumbDek),
+              'nonce': CryptoService.b64Encode(thumbNonce),
+            },
+            contentType: 'image/jpeg',
+          ),
+          isRetryable: S3Service.isRetryable,
+          maxAttempts: kUploadMaxAttempts,
+          onRetry: (attempt, error, delay) => _log.warning(
+            'PUT thumb $thumbKey attempt $attempt failed, '
+            'retry in ${delay.inMilliseconds}ms: $error',
+          ),
         );
       } catch (e) {
         // Thumbnail upload failure is non-fatal

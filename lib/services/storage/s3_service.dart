@@ -53,6 +53,21 @@ class S3Service {
 
   bool get isConfigured => _config != null;
 
+  /// Whether an error from an S3 HTTP call is worth retrying.
+  ///
+  /// Retryable: network-level failures with no response (DNS, TCP,
+  /// timeouts) and transient server responses (429, 5xx).
+  /// Not retryable: 4xx (auth, signature, bad request) which would fail
+  /// identically on retry, and non-HTTP errors (crypto, config).
+  static bool isRetryable(Object error) {
+    Object? e = error;
+    if (e is StorageException) e = e.cause;
+    if (e is! DioException) return false;
+    final status = e.response?.statusCode;
+    if (status == null) return true; // no response — network-level failure
+    return status == 429 || status >= 500;
+  }
+
   // ── Path helpers ──
 
   /// Build the base S3 key prefix: enpix/{prefix}{deviceId}
@@ -60,9 +75,8 @@ class S3Service {
   /// - deviceId: human-readable "{name}-{model}" (e.g. "wyang-iphone8")
   /// - If prefix is non-empty and doesn't end with "/", a "/" is inserted.
   static String _keyBase(String prefix, String? deviceId) {
-    final prefixSeg = prefix.isEmpty
-        ? ''
-        : (prefix.endsWith('/') ? prefix : '$prefix/');
+    final prefixSeg =
+        prefix.isEmpty ? '' : (prefix.endsWith('/') ? prefix : '$prefix/');
     final device = deviceId ?? 'unknown-device';
     return 'enpix/$prefixSeg$device';
   }
