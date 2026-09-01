@@ -5,6 +5,7 @@ import 'package:logging/logging.dart';
 import 'package:photo_manager/photo_manager.dart';
 import '../crypto/credential_service.dart';
 import '../device_service.dart';
+import '../network/network_guard.dart';
 import '../storage/s3_service.dart';
 import '../cache/thumbnail_cache.dart';
 import 'upload_service.dart';
@@ -23,6 +24,7 @@ class BackupManager extends StateNotifier<BackupTask> {
   final CredentialService _credService;
   final S3Service _s3;
   final DeviceService _deviceService;
+  final NetworkGuard _networkGuard;
 
   bool _cancelled = false;
 
@@ -33,6 +35,7 @@ class BackupManager extends StateNotifier<BackupTask> {
     this._credService,
     this._s3,
     this._deviceService,
+    this._networkGuard,
   ) : super(BackupTask(startedAt: DateTime.now()));
 
   /// Start a force-full backup — re-uploads everything regardless of S3 state.
@@ -168,6 +171,9 @@ class BackupManager extends StateNotifier<BackupTask> {
     const concurrency = 3;
     var i = 0;
     while (i < pending.length && !_cancelled) {
+      // WiFi-only gate: pause (state → waitingForWifi) until WiFi returns.
+      // Returns false if the user stopped the backup while waiting.
+      if (!await _waitForAllowedNetwork()) break;
       final batchEnd = (i + concurrency).clamp(0, pending.length);
       final batch = pending.sublist(i, batchEnd);
       final results = await Future.wait(
@@ -240,6 +246,27 @@ class BackupManager extends StateNotifier<BackupTask> {
     }
 
     _log.info('Backup finished: $state');
+  }
+
+  /// WiFi-only gate between upload batches.
+  ///
+  /// If the network disallows uploads (wifiOnly on, no WiFi), transitions
+  /// state to [BackupStatus.waitingForWifi] and blocks until WiFi returns.
+  /// Returns false if the backup was stopped while waiting — the caller
+  /// should break out of the upload loop.
+  Future<bool> _waitForAllowedNetwork() async {
+    if (await _networkGuard.isUploadAllowed) return true;
+    _log.info('WiFi-only: not on WiFi, backup paused');
+    state = state.copyWith(status: BackupStatus.waitingForWifi);
+    final allowed = await _networkGuard.waitForUploadAllowed(
+      isCancelled: () => _cancelled,
+    );
+    // Re-check _cancelled: WiFi may return in the same instant the user
+    // stops the backup — never flip state back to running after stop().
+    if (!allowed || _cancelled) return false;
+    _log.info('WiFi available, backup resumed');
+    state = state.copyWith(status: BackupStatus.running);
+    return true;
   }
 
   /// Public entry point — called by UI "Report" button.

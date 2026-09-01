@@ -11,53 +11,62 @@ class ProgressHeader extends StatelessWidget {
   const ProgressHeader({super.key, required this.task});
 
   @override
-  Widget build(BuildContext context) => Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: (task.isRunning
-                      ? context.colors.brandBlue
-                      : context.colors.brandGreen)
-                  .withAlpha(25),
-              borderRadius: BorderRadius.circular(AppRadius.sm),
-            ),
-            child: Icon(
-              task.isRunning
-                  ? Icons.cloud_upload_rounded
-                  : Icons.check_circle_rounded,
-              color: task.isRunning
-                  ? context.colors.brandBlue
-                  : context.colors.brandGreen,
-              size: 24,
-            ),
+  Widget build(BuildContext context) {
+    final waitingForWifi = task.isWaitingForWifi;
+    return Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: (task.isRunning
+                    ? context.colors.brandBlue
+                    : context.colors.brandGreen)
+                .withAlpha(25),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
           ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  task.isRunning ? '正在备份...' : '备份完成',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600,
-                    color: context.colors.labelPrimary,
-                  ),
-                ),
-                Text(
-                  task.progressText,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: context.colors.labelSecondary,
-                  ),
-                ),
-              ],
-            ),
+          child: Icon(
+            waitingForWifi
+                ? Icons.wifi_off_rounded
+                : task.isRunning
+                    ? Icons.cloud_upload_rounded
+                    : Icons.check_circle_rounded,
+            color: task.isRunning
+                ? context.colors.brandBlue
+                : context.colors.brandGreen,
+            size: 24,
           ),
-        ],
-      );
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                waitingForWifi
+                    ? '等待 WiFi...'
+                    : task.isRunning
+                        ? '正在备份...'
+                        : '备份完成',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: context.colors.labelPrimary,
+                ),
+              ),
+              Text(
+                task.progressText,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: context.colors.labelSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 /// Bandwidth and throughput info box.

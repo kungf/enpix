@@ -24,7 +24,11 @@ class BackupTask {
     this.errors = const [],
   });
 
-  bool get isRunning => status == BackupStatus.running;
+  /// Waiting for WiFi still counts as running: the backup mutex stays held,
+  /// progress is preserved, and stop() remains effective.
+  bool get isRunning =>
+      status == BackupStatus.running || status == BackupStatus.waitingForWifi;
+  bool get isWaitingForWifi => status == BackupStatus.waitingForWifi;
   bool get isIdle => status == BackupStatus.idle;
   bool get isDone =>
       status == BackupStatus.completed || status == BackupStatus.stopped;
@@ -83,4 +87,4 @@ class BackupTask {
       'ok=$completedCount skip=$skippedCount fail=$failedCount)';
 }
 
-enum BackupStatus { idle, running, completed, stopped }
+enum BackupStatus { idle, running, waitingForWifi, completed, stopped }

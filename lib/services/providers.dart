@@ -3,6 +3,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'crypto/crypto_service.dart';
 import 'crypto/credential_service.dart';
 import 'crypto/recovery_service.dart';
+import 'network/network_guard.dart';
+import 'settings/upload_settings_provider.dart';
 import 'storage/s3_service.dart';
 import 'upload/upload_tracker.dart';
 import 'cache/thumbnail_cache.dart';
@@ -45,6 +47,16 @@ final ttlEngineProvider = Provider<TtlEngine>((ref) {
   return TtlEngine(ref.watch(uploadTrackerProvider));
 });
 
+/// Enforces the WiFi-only upload setting. [wifiOnly] is read via ref.read
+/// at check time so toggling the setting mid-backup takes effect on the
+/// next batch without rebuilding the manager.
+final networkGuardProvider = Provider<NetworkGuard>((ref) {
+  return NetworkGuard(
+    probe: ConnectivityPlusProbe(),
+    wifiOnly: () => ref.read(uploadSettingsProvider).wifiOnly,
+  );
+});
+
 final backupManagerProvider =
     StateNotifierProvider<BackupManager, BackupTask>((ref) {
   return BackupManager(
@@ -57,6 +69,7 @@ final backupManagerProvider =
     ref.watch(credentialServiceProvider),
     ref.watch(s3ServiceProvider),
     ref.watch(deviceServiceProvider),
+    ref.watch(networkGuardProvider),
   );
 });
 
