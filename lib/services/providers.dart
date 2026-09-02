@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'biometric/biometric_service.dart';
 import 'crypto/crypto_service.dart';
 import 'crypto/credential_service.dart';
 import 'crypto/recovery_service.dart';
@@ -26,6 +27,7 @@ final credentialServiceProvider = Provider<CredentialService>((ref) {
   return CredentialService(
     ref.watch(cryptoServiceProvider),
     const FlutterSecureStorage(),
+    biometric: LocalAuthBiometric(),
   );
 });
 

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:logging/logging.dart';
 import '../../core/errors/storage_exception.dart';
+import '../biometric/biometric_service.dart';
 import 'crypto_service.dart';
 
 /// Service for securely storing and retrieving user credentials.
@@ -16,7 +17,10 @@ import 'crypto_service.dart';
 ///     photo encryption
 ///
 /// Session model:
-///   - On app start: autoUnlock() re-derives KEK from saved passphrase
+///   - On app start: autoUnlock() restores the session from Keychain
+///     material — opt-in only (see [isAutoUnlockEnabled]) and gated on
+///     biometrics when the device has them enrolled. Otherwise the user
+///     unlocks manually in Settings (passphrase or recovery key)
 ///   - Session KEK must be in memory to upload new photos or decrypt cloud photos
 ///   - S3 connection (AK/SK) does NOT require a session — credentials are
 ///     always readable from Keychain
@@ -24,6 +28,7 @@ class CredentialService {
   final Logger _log = Logger('CredentialService');
   final CryptoService _crypto;
   final FlutterSecureStorage _storage;
+  final BiometricAuth? _biometric;
 
   // Keychain keys
   static const _akKey = 'access_key_v2';
@@ -34,6 +39,7 @@ class CredentialService {
   static const _kekFingerprintKey = 'kek_fingerprint_v1';
   static const _hasPassphraseKey = 'has_passphrase';
   static const _savedPassphraseKey = 'saved_passphrase';
+  static const _autoUnlockKey = 'auto_unlock_enabled';
   static const _s3EndpointKey = 's3_endpoint';
   static const _s3BucketKey = 's3_bucket';
   static const _s3RegionKey = 's3_region';
@@ -61,7 +67,8 @@ class CredentialService {
   /// The current session Master Key. Null if session not active.
   Uint8List? get sessionMasterKey => _sessionActive ? _sessionMasterKey : null;
 
-  CredentialService(this._crypto, this._storage);
+  CredentialService(this._crypto, this._storage, {BiometricAuth? biometric})
+      : _biometric = biometric;
 
   // ── Session Management ───────────────────────────────────────
 
@@ -91,6 +98,20 @@ class CredentialService {
   }
 
   // ── Passphrase Setup ─────────────────────────────────────────
+
+  /// Persist the KEK as fast-path auto-unlock material — only when the
+  /// user opted in (see [isAutoUnlockEnabled]).
+  Future<void> _persistKekForAutoUnlock(Uint8List kek) async {
+    if (!await isAutoUnlockEnabled()) return;
+    await _storage.write(key: _kekKey, value: CryptoService.b64Encode(kek));
+  }
+
+  /// Persist the passphrase as slow-path auto-unlock material (fallback
+  /// when Keychain data is corrupt) — only when the user opted in.
+  Future<void> _persistPassphraseForAutoUnlock(String passphrase) async {
+    if (!await isAutoUnlockEnabled()) return;
+    await _storage.write(key: _savedPassphraseKey, value: passphrase);
+  }
 
   /// Whether a passphrase has been set up.
   Future<bool> hasPassphrase() async {
@@ -135,7 +156,7 @@ class CredentialService {
       key: _kekSaltKey,
       value: CryptoService.b64Encode(salt),
     );
-    await _storage.write(key: _kekKey, value: CryptoService.b64Encode(kek));
+    await _persistKekForAutoUnlock(kek);
     await _storage.write(key: _kekFingerprintKey, value: fingerprint);
     await _storage.write(key: _hasPassphraseKey, value: 'true');
     await _storage.write(
@@ -155,10 +176,9 @@ class CredentialService {
       value: fingerprint.length >= 12 ? fingerprint.substring(0, 12) : 'shared',
     );
 
-    // Save passphrase for auto-unlock on next app start. Without this the
-    // session could never be restored after a restart (backups silently
-    // blocked until a manual unlock that had no UI entry point).
-    await _storage.write(key: _savedPassphraseKey, value: passphrase);
+    // Save the passphrase for auto-unlock on next app start — opt-in only.
+    // When auto-unlock is off the user unlocks manually in Settings.
+    await _persistPassphraseForAutoUnlock(passphrase);
 
     // Activate the full session immediately — KEK and Master Key in memory.
     // Previously only the KEK was set by callers, leaving sessionMasterKey
@@ -254,11 +274,11 @@ class CredentialService {
     // Persist everything to Keychain so the session survives restarts.
     final fingerprint = await _crypto.computeFingerprint(kek);
     await _storage.write(key: _kekSaltKey, value: saltB64);
-    await _storage.write(key: _kekKey, value: CryptoService.b64Encode(kek));
+    await _persistKekForAutoUnlock(kek);
     await _storage.write(key: _kekFingerprintKey, value: fingerprint);
     await _storage.write(key: _hasPassphraseKey, value: 'true');
     await _storage.write(key: _wrappedMasterKeyKey, value: wrappedMkB64);
-    await _storage.write(key: _savedPassphraseKey, value: password);
+    await _persistPassphraseForAutoUnlock(password);
     if (memory != null) {
       await _storage.write(key: _argon2MemoryKey, value: memory.toString());
     }
@@ -323,8 +343,8 @@ class CredentialService {
     startSession(kek);
     _sessionMasterKey = masterKey;
 
-    // Save passphrase for auto-unlock on next app start
-    await _storage.write(key: _savedPassphraseKey, value: passphrase);
+    // Save passphrase for auto-unlock on next app start — opt-in only.
+    await _persistPassphraseForAutoUnlock(passphrase);
 
     return kek;
   }
@@ -376,7 +396,47 @@ class CredentialService {
     }
   }
 
+  /// Whether auto-unlock (restoring the session on app start without
+  /// typing the passphrase) is enabled.
+  ///
+  /// Migration: users who saved unlock material before this flag existed
+  /// are treated as enabled — the opt-in default only applies to new
+  /// setups.
+  Future<bool> isAutoUnlockEnabled() async {
+    final flag = await _storage.read(key: _autoUnlockKey);
+    if (flag != null) return flag == 'true';
+    final saved = await _storage.read(key: _savedPassphraseKey);
+    final kek = await _storage.read(key: _kekKey);
+    return saved != null || kek != null;
+  }
+
+  /// Enable auto-unlock. Requires an active session — the current KEK is
+  /// persisted as the fast-path restore material. The passphrase itself
+  /// is (re)saved on the next manual unlock or passphrase change.
+  Future<void> enableAutoUnlock() async {
+    final kek = _sessionKek;
+    if (!_sessionActive || kek == null) {
+      throw StateError('开启自动解锁前需要先解锁');
+    }
+    await _storage.write(key: _kekKey, value: CryptoService.b64Encode(kek));
+    await _storage.write(key: _autoUnlockKey, value: 'true');
+    _log.info('Auto-unlock enabled');
+  }
+
+  /// Disable auto-unlock and clear all restore material from Keychain.
+  /// Manual unlock (passphrase or recovery key) is unaffected.
+  Future<void> disableAutoUnlock() async {
+    await _storage.delete(key: _savedPassphraseKey);
+    await _storage.delete(key: _kekKey);
+    await _storage.write(key: _autoUnlockKey, value: 'false');
+    _log.info('Auto-unlock disabled (restore materials cleared)');
+  }
+
   /// Try to auto-unlock the session on cold start.
+  ///
+  /// Opt-in only (see [isAutoUnlockEnabled]) and gated on biometrics when
+  /// the device has them enrolled — a cancelled prompt means the user
+  /// falls back to manual unlock, never a lockout.
   ///
   /// Fast path: reads KEK directly from Keychain (zero crypto cost).
   /// Slow path: re-derives KEK from saved passphrase via Argon2id (runs
@@ -385,6 +445,18 @@ class CredentialService {
   /// Returns true if unlock succeeded.
   Future<bool> autoUnlock() async {
     if (isSessionActive) return true;
+
+    // Auto-unlock is opt-in — when disabled the user unlocks manually
+    // in Settings (passphrase or recovery key).
+    if (!await isAutoUnlockEnabled()) return false;
+
+    // Biometric gate: restoring the session requires user presence when
+    // biometrics are available on this device.
+    final bio = _biometric;
+    if (bio != null && await bio.isAvailable()) {
+      final ok = await bio.authenticate(reason: '验证身份以恢复加密会话');
+      if (!ok) return false;
+    }
 
     // Fast path: load KEK directly from Keychain.
     if (await _loadSessionFromKeychain()) return true;
@@ -465,7 +537,7 @@ class CredentialService {
       key: _kekSaltKey,
       value: CryptoService.b64Encode(salt),
     );
-    await _storage.write(key: _kekKey, value: CryptoService.b64Encode(newKek));
+    await _persistKekForAutoUnlock(newKek);
     await _storage.write(key: _kekFingerprintKey, value: fingerprint);
     await _storage.write(
       key: _argon2MemoryKey,
@@ -487,7 +559,7 @@ class CredentialService {
     // Save the NEW passphrase for auto-unlock — previously the saved
     // passphrase stayed the old one, so the next launch failed auto-unlock
     // and cleared it, locking the user out with no unlock UI.
-    await _storage.write(key: _savedPassphraseKey, value: newPassphrase);
+    await _persistPassphraseForAutoUnlock(newPassphrase);
 
     // Resume the session with the new KEK and the preserved Master Key
     // (both now owned by the session — do NOT zero them). Previously the
@@ -534,7 +606,7 @@ class CredentialService {
       key: _kekSaltKey,
       value: CryptoService.b64Encode(salt),
     );
-    await _storage.write(key: _kekKey, value: CryptoService.b64Encode(newKek));
+    await _persistKekForAutoUnlock(newKek);
     await _storage.write(key: _kekFingerprintKey, value: fingerprint);
     await _storage.write(key: _hasPassphraseKey, value: 'true');
     await _storage.write(
@@ -546,7 +618,7 @@ class CredentialService {
       value: params.memory.toString(),
     );
     await _storage.write(key: _argon2OpsKey, value: params.ops.toString());
-    await _storage.write(key: _savedPassphraseKey, value: newPassphrase);
+    await _persistPassphraseForAutoUnlock(newPassphrase);
 
     // Refresh the session with the new KEK; Master Key stays as-is.
     final oldKek = _sessionKek;
@@ -618,6 +690,7 @@ class CredentialService {
     await _storage.delete(key: _kekFingerprintKey);
     await _storage.delete(key: _hasPassphraseKey);
     await _storage.delete(key: _savedPassphraseKey);
+    await _storage.delete(key: _autoUnlockKey);
     await _storage.delete(key: _wrappedMasterKeyKey);
     await _storage.delete(key: _argon2MemoryKey);
     await _storage.delete(key: _argon2OpsKey);

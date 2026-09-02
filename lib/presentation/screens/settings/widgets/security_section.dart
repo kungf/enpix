@@ -40,17 +40,27 @@ class SecuritySection extends ConsumerStatefulWidget {
 class _SecuritySectionState extends ConsumerState<SecuritySection> {
   static final _log = Logger('SecuritySection');
   bool _hasPassphrase = false;
+  bool _autoUnlock = false;
 
   @override
   void initState() {
     super.initState();
     _refreshHasPassphrase();
+    _refreshAutoUnlock();
   }
 
   Future<void> _refreshHasPassphrase() async {
     final has = await ref.read(credentialServiceProvider).hasPassphrase();
     if (mounted && has != _hasPassphrase) {
       setState(() => _hasPassphrase = has);
+    }
+  }
+
+  Future<void> _refreshAutoUnlock() async {
+    final enabled =
+        await ref.read(credentialServiceProvider).isAutoUnlockEnabled();
+    if (mounted && enabled != _autoUnlock) {
+      setState(() => _autoUnlock = enabled);
     }
   }
 
@@ -103,6 +113,18 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
         ),
         if (_hasPassphrase)
           EnpixListTile(
+            icon: Icons.fingerprint_rounded,
+            iconColor: context.colors.brandPurple,
+            title: '自动解锁',
+            subtitle:
+                _autoUnlock ? '已开启 · 重启后免密码恢复会话，受生物识别保护' : '已关闭 · 重启后需手动输入密码解锁',
+            trailing: Switch(
+              value: _autoUnlock,
+              onChanged: _setAutoUnlock,
+            ),
+          ),
+        if (_hasPassphrase)
+          EnpixListTile(
             icon: Icons.key_rounded,
             iconColor: context.colors.brandOrange,
             title: '重置密码',
@@ -150,6 +172,54 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
             isError ? context.colors.brandRed : context.colors.brandGreen,
       ),
     );
+  }
+
+  /// Toggle auto-unlock. Enabling confirms the security trade-off first;
+  /// disabling is immediate.
+  Future<void> _setAutoUnlock(bool value) async {
+    if (value && !await _confirmEnableAutoUnlock()) return;
+
+    final cred = ref.read(credentialServiceProvider);
+    try {
+      if (value) {
+        await cred.enableAutoUnlock();
+      } else {
+        await cred.disableAutoUnlock();
+      }
+    } on StateError {
+      _showSnack('开启自动解锁前需要先解锁', isError: true);
+      return;
+    } on Exception catch (e) {
+      _showSnack('操作失败: $e', isError: true);
+      return;
+    }
+    if (mounted) setState(() => _autoUnlock = value);
+  }
+
+  /// Explicit risk disclosure before weakening the unlock posture.
+  Future<bool> _confirmEnableAutoUnlock() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('开启自动解锁？'),
+        content: const Text(
+          '开启后，重启应用时无需输入密码即可恢复加密会话。'
+          '能解锁你手机的人也将能够查看你的云端照片。\n\n'
+          '建议确保设备已录入面容 ID 或指纹——验证通过后才会自动解锁。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton.tonal(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('开启'),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
   }
 
   Future<void> _setupPassphrase() async {
@@ -391,11 +461,12 @@ class _SecuritySectionState extends ConsumerState<SecuritySection> {
         // Also upload WARNING file.
         await s3.putObject(
           _warningPath,
-          Uint8List.fromList(utf8.encode(
-            '⚠️ 请勿删除此目录下的文件\n'
-            '这些是数据恢复凭证。删除后将无法通过密码或恢复密钥找回加密数据。',
+          Uint8List.fromList(
+            utf8.encode(
+              '⚠️ 请勿删除此目录下的文件\n'
+              '这些是数据恢复凭证。删除后将无法通过密码或恢复密钥找回加密数据。',
+            ),
           ),
-        ),
         );
         _log.info('Keystore synced to S3');
       } on Exception catch (e) {

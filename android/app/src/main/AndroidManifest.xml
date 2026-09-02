@@ -4,6 +4,8 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
     <!-- Network for S3 uploads -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Biometric gate for auto-unlock -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <application
         android:label="Enpix"
         android:name="${applicationName}"

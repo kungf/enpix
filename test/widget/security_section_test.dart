@@ -177,4 +177,66 @@ void main() {
       },
     );
   });
+
+  group('auto-unlock toggle', () {
+    testWidgets(
+      'hidden when no passphrase is set',
+      (tester) async {
+        await pumpSecuritySection(tester);
+
+        expect(find.text('自动解锁'), findsNothing);
+        expect(find.byType(Switch), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'enabling shows risk dialog and persists restore material',
+      (tester) async {
+        // Bypass real crypto — enableAutoUnlock only needs a session KEK
+        // (Argon2id derivation hangs under the testWidgets fake clock).
+        cred.startSession(_dummyKey);
+        backing['has_passphrase'] = 'true';
+        await pumpSecuritySection(tester);
+
+        expect(find.text('自动解锁'), findsOneWidget);
+        expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+
+        await tester.tap(find.byType(Switch));
+        await tester.pump();
+
+        // Risk confirmation before weakening the security posture.
+        expect(find.text('开启自动解锁？'), findsOneWidget);
+        expect(
+          find.textContaining('能解锁你手机的人'),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.text('开启'));
+        await tester.pumpAndSettle();
+
+        expect(backing['auto_unlock_enabled'], 'true');
+        expect(backing.containsKey('wrapped_kek_v1'), isTrue);
+        expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+      },
+    );
+
+    testWidgets(
+      'disabling clears stored restore material',
+      (tester) async {
+        cred.startSession(_dummyKey);
+        backing['has_passphrase'] = 'true';
+        await cred.enableAutoUnlock();
+        await pumpSecuritySection(tester);
+
+        // Turning off needs no confirmation dialog.
+        await tester.tap(find.byType(Switch));
+        await tester.pumpAndSettle();
+
+        expect(backing['auto_unlock_enabled'], 'false');
+        expect(backing.containsKey('wrapped_kek_v1'), isFalse);
+        expect(backing.containsKey('saved_passphrase'), isFalse);
+        expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+      },
+    );
+  });
 }
