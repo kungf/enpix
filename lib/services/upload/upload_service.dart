@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 import 'package:logging/logging.dart';
@@ -9,6 +10,15 @@ import '../../core/utils/retry.dart';
 /// Total attempts for a single S3 PUT: 1 initial + 3 retries,
 /// backing off 1s / 2s / 4s (±25% jitter) between attempts.
 const int kUploadMaxAttempts = 4;
+
+/// S3 multipart part size: 8MB. S3 requires every part except the last to
+/// be ≥5MB — 8MB clears that and keeps a single part well under the 300s
+/// receive timeout even on slow links.
+const int kMultipartPartSize = 8 * 1024 * 1024;
+
+/// Encrypted files larger than this use multipart upload; anything smaller
+/// is a single PUT (a one-part multipart would only add overhead).
+const int kMultipartThreshold = kMultipartPartSize;
 
 class UploadService {
   final Logger _log = Logger('UploadService');
@@ -104,26 +114,41 @@ class UploadService {
 
     // 8. Upload original to S3 (retries transient network/server errors)
     try {
-      _log.info('PUT to S3: $key (${encrypted.length} bytes)');
-      await withRetry(
-        () => _s3.putObject(
+      final metadata = {
+        'dek': CryptoService.b64Encode(wrappedDek),
+        'nonce': CryptoService.b64Encode(nonce),
+        'hash': hashHex,
+        'filename': fileName,
+      };
+      if (encrypted.length > kMultipartThreshold) {
+        await _uploadMultipart(
           key,
           encrypted,
-          metadata: {
-            'dek': CryptoService.b64Encode(wrappedDek),
-            'nonce': CryptoService.b64Encode(nonce),
-            'hash': hashHex,
-            'filename': fileName,
-          },
+          metadata: metadata,
           contentType: mimeType,
-        ),
-        isRetryable: S3Service.isRetryable,
-        maxAttempts: kUploadMaxAttempts,
-        onRetry: (attempt, error, delay) => _log.warning(
-          'PUT $key attempt $attempt failed, '
-          'retry in ${delay.inMilliseconds}ms: $error',
-        ),
-      );
+          isCancelled: isCancelled,
+        );
+      } else {
+        _log.info('PUT to S3: $key (${encrypted.length} bytes)');
+        await withRetry(
+          () => _s3.putObject(
+            key,
+            encrypted,
+            metadata: metadata,
+            contentType: mimeType,
+          ),
+          isRetryable: S3Service.isRetryable,
+          maxAttempts: kUploadMaxAttempts,
+          onRetry: (attempt, error, delay) => _log.warning(
+            'PUT $key attempt $attempt failed, '
+            'retry in ${delay.inMilliseconds}ms: $error',
+          ),
+        );
+      }
+    } on UploadCancelledException {
+      // Cancellation must reach BackupManager as itself — not be recorded
+      // as a failed file.
+      rethrow;
     } catch (e) {
       _log.severe('S3 upload failed: $e');
       return UploadResult.error('Upload failed: $e');
@@ -176,6 +201,58 @@ class UploadService {
       encrypted.length,
       thumbData: thumbJpeg,
     );
+  }
+
+  /// Upload [encrypted] via S3 multipart in 8MB parts, retrying each part
+  /// independently — a flaky link re-sends one part, not the whole file.
+  /// Aborts the upload on failure or cancellation so orphaned parts don't
+  /// linger in the bucket.
+  Future<void> _uploadMultipart(
+    String key,
+    Uint8List encrypted, {
+    required Map<String, String> metadata,
+    required String contentType,
+    required bool Function() isCancelled,
+  }) async {
+    final uploadId = await _s3.initiateMultipartUpload(
+      key,
+      metadata: metadata,
+      contentType: contentType,
+    );
+    final totalParts = (encrypted.length / kMultipartPartSize).ceil();
+    _log.info(
+      'MULTIPART PUT: $key (${encrypted.length} bytes, $totalParts parts)',
+    );
+    try {
+      final parts = <S3Part>[];
+      for (var partNumber = 1; partNumber <= totalParts; partNumber++) {
+        if (isCancelled()) throw const UploadCancelledException();
+        final start = (partNumber - 1) * kMultipartPartSize;
+        final end = math.min(partNumber * kMultipartPartSize, encrypted.length);
+        // Zero-copy view — the source buffer is never mutated.
+        final chunk = Uint8List.sublistView(encrypted, start, end);
+        final etag = await withRetry(
+          () => _s3.uploadPart(key, uploadId, partNumber, chunk),
+          isRetryable: S3Service.isRetryable,
+          maxAttempts: kUploadMaxAttempts,
+          onRetry: (attempt, error, delay) => _log.warning(
+            'PUT part $key#$partNumber attempt $attempt failed, '
+            'retry in ${delay.inMilliseconds}ms: $error',
+          ),
+        );
+        parts.add(S3Part(partNumber, etag));
+      }
+      await _s3.completeMultipartUpload(key, uploadId, parts);
+    } on Exception {
+      // Abort so parts already stored don't linger; a failed abort is left
+      // to bucket lifecycle rules (AbortIncompleteMultipartUpload).
+      try {
+        await _s3.abortMultipartUpload(key, uploadId);
+      } on Exception catch (abortError) {
+        _log.warning('Abort multipart failed ($key): $abortError');
+      }
+      rethrow;
+    }
   }
 
   static bool _neverCancelled() => false;

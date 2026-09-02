@@ -13,19 +13,25 @@ class S3Service {
   final Logger _log = Logger('S3Service');
   final Dio _dio;
 
-  S3Service()
-      : _dio = Dio(
-          BaseOptions(
-            connectTimeout: const Duration(seconds: 30),
-            receiveTimeout: const Duration(seconds: 300),
-          ),
-        ) {
-    // Reuse TCP connections — avoids handshake per request during bulk upload.
-    (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
-      final client = HttpClient();
-      client.idleTimeout = const Duration(seconds: 30);
-      return client;
-    };
+  /// [dio] is an injection seam for tests; production callers omit it and
+  /// get a tuned default client.
+  S3Service({Dio? dio})
+      : _dio = dio ??
+            Dio(
+              BaseOptions(
+                connectTimeout: const Duration(seconds: 30),
+                receiveTimeout: const Duration(seconds: 300),
+              ),
+            ) {
+    // Reuse TCP connections — avoids handshake per request during bulk
+    // upload. Skipped for injected clients — tests own the transport.
+    if (dio == null) {
+      (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+        final client = HttpClient();
+        client.idleTimeout = const Duration(seconds: 30);
+        return client;
+      };
+    }
     // autoUncompress must be true (the default) so that S3/MinIO gzip-compressed
     // XML responses (LIST results > threshold) are auto-decompressed by the
     // HTTP transport. S3 only compresses text/xml, never binary content.
@@ -310,6 +316,171 @@ class S3Service {
     }
   }
 
+  // ── Multipart upload ──
+
+  /// Initiate a multipart upload. Returns the new uploadId.
+  ///
+  /// All object metadata (x-amz-meta-*) must be supplied here — part
+  /// requests cannot carry it.
+  Future<String> initiateMultipartUpload(
+    String key, {
+    Map<String, String>? metadata,
+    String? contentType,
+  }) async {
+    _ensureConfigured();
+    _log.info('MULTIPART INIT: $key');
+    try {
+      final path = '/${_config!.bucketName}/$key?uploads';
+      final empty = Uint8List(0);
+      final sha = sha256.convert(empty).toString();
+      final extraHeaders = <String, String>{
+        'Content-Type': contentType ?? 'application/octet-stream',
+        'Content-Length': '0',
+        'x-amz-content-sha256': sha,
+      };
+      if (metadata != null) {
+        for (final e in metadata.entries) {
+          extraHeaders['x-amz-meta-${e.key}'] = e.value;
+        }
+      }
+      final r = await _dio.post(
+        path,
+        data: Stream.value(empty),
+        options: _signedOptions(
+          'POST',
+          path,
+          headers: extraHeaders,
+          payloadHash: sha,
+        ),
+      );
+      final body = r.data is String ? r.data as String : r.data.toString();
+      final uploadId = XmlDocument.parse(body)
+          .getElement('InitiateMultipartUploadResult')
+          ?.getElement('UploadId')
+          ?.innerText;
+      if (uploadId == null || uploadId.isEmpty) {
+        throw const FormatException('Missing UploadId in initiate response');
+      }
+      return uploadId;
+    } on Exception catch (e) {
+      throw StorageException(
+        message: 'Initiate multipart failed: $key — $e',
+        cause: e,
+      );
+    }
+  }
+
+  /// Upload one part of a multipart upload. Returns the part's ETag
+  /// (quotes included) for [completeMultipartUpload].
+  Future<String> uploadPart(
+    String key,
+    String uploadId,
+    int partNumber,
+    Uint8List data,
+  ) async {
+    _ensureConfigured();
+    try {
+      final path =
+          '/${_config!.bucketName}/$key?partNumber=$partNumber&uploadId=$uploadId';
+      final sha = sha256.convert(data).toString();
+      final r = await _dio.put(
+        path,
+        data: Stream.value(data),
+        options: _signedOptions(
+          'PUT',
+          path,
+          headers: {
+            'Content-Length': data.length.toString(),
+            'x-amz-content-sha256': sha,
+          },
+          payloadHash: sha,
+        ),
+      );
+      final etag = r.headers.value('etag');
+      if (etag == null || etag.isEmpty) {
+        throw const FormatException('Missing ETag in UploadPart response');
+      }
+      return etag;
+    } on Exception catch (e) {
+      throw StorageException(
+        message: 'UploadPart failed: $key#$partNumber — $e',
+        cause: e,
+      );
+    }
+  }
+
+  /// Complete a multipart upload, committing all uploaded parts into the
+  /// final object. [parts] must list every part number with the ETag the
+  /// server returned for it, in ascending part order.
+  Future<void> completeMultipartUpload(
+    String key,
+    String uploadId,
+    List<S3Part> parts,
+  ) async {
+    _ensureConfigured();
+    try {
+      final path = '/${_config!.bucketName}/$key?uploadId=$uploadId';
+      final builder = XmlBuilder();
+      builder.element(
+        'CompleteMultipartUpload',
+        nest: () {
+          for (final p in parts) {
+            builder.element(
+              'Part',
+              nest: () {
+                builder.element('PartNumber', nest: p.partNumber);
+                builder.element('ETag', nest: p.etag);
+              },
+            );
+          }
+        },
+      );
+      final body = Uint8List.fromList(
+        utf8.encode(builder.buildDocument().toString()),
+      );
+      final sha = sha256.convert(body).toString();
+      await _dio.post(
+        path,
+        data: Stream.value(body),
+        options: _signedOptions(
+          'POST',
+          path,
+          headers: {
+            'Content-Type': 'application/xml',
+            'Content-Length': body.length.toString(),
+            'x-amz-content-sha256': sha,
+          },
+          payloadHash: sha,
+        ),
+      );
+      _log.info('MULTIPART COMPLETE: $key (${parts.length} parts)');
+    } on Exception catch (e) {
+      throw StorageException(
+        message: 'Complete multipart failed: $key — $e',
+        cause: e,
+      );
+    }
+  }
+
+  /// Abort a multipart upload, discarding uploaded parts.
+  ///
+  /// Call on any failure or cancellation so orphaned parts don't linger in
+  /// the bucket. If the abort itself fails, a bucket lifecycle rule
+  /// (AbortIncompleteMultipartUpload) is the safety net.
+  Future<void> abortMultipartUpload(String key, String uploadId) async {
+    _ensureConfigured();
+    try {
+      final path = '/${_config!.bucketName}/$key?uploadId=$uploadId';
+      await _dio.delete(path, options: _signedOptions('DELETE', path));
+      _log.info('MULTIPART ABORT: $key');
+    } on Exception catch (e) {
+      throw StorageException(
+        message: 'Abort multipart failed: $key — $e',
+        cause: e,
+      );
+    }
+  }
+
   /// List objects under [prefix]. Returns all matching objects (paginated internally).
   Future<List<S3Object>> listObjects(String prefix) async {
     _ensureConfigured();
@@ -498,4 +669,13 @@ class S3Object {
     required this.size,
     required this.lastModified,
   });
+}
+
+/// One uploaded part of a multipart upload: its 1-based number and the
+/// ETag the server returned when it was stored.
+class S3Part {
+  final int partNumber;
+  final String etag;
+
+  const S3Part(this.partNumber, this.etag);
 }
