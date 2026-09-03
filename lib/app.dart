@@ -8,6 +8,7 @@ import 'presentation/screens/local_gallery/local_gallery_screen.dart';
 import 'presentation/screens/cloud_gallery/cloud_gallery_screen.dart';
 import 'presentation/screens/overview/overview_screen.dart';
 import 'services/providers.dart';
+import 'services/session/session_lock.dart';
 
 /// Root widget of the Enpix app.
 ///
@@ -49,12 +50,40 @@ class MainScreen extends ConsumerStatefulWidget {
 
 class _MainScreenState extends ConsumerState<MainScreen> {
   final _log = Logger('MainScreen');
+  late final SessionLock _sessionLock;
   int _currentIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    // Clear the in-memory key session after a long background trip.
+    // A running backup defers the lock — it reads the session key per file.
+    _sessionLock = SessionLock(
+      credentialService: ref.read(credentialServiceProvider),
+      onSessionLocked: () => ref.read(sessionTickProvider.notifier).state++,
+      onResumeAfterLock: _tryAutoUnlock,
+      isBusy: () => ref.read(backupManagerProvider).isRunning,
+    );
+    _sessionLock.attach(WidgetsBinding.instance);
     WidgetsBinding.instance.addPostFrameCallback((_) => _init());
+  }
+
+  @override
+  void dispose() {
+    _sessionLock.detach(WidgetsBinding.instance);
+    super.dispose();
+  }
+
+  /// Re-run the startup unlock path after a background timeout lock: the
+  /// biometric gate prompts when auto-unlock is enabled; otherwise the
+  /// user unlocks manually in Settings.
+  Future<void> _tryAutoUnlock() async {
+    final unlocked = await ref.read(credentialServiceProvider).autoUnlock();
+    if (!mounted) return;
+    if (unlocked) {
+      _log.info('KEK session re-unlocked after background lock');
+      ref.read(sessionTickProvider.notifier).state++;
+    }
   }
 
   Future<void> _init() async {
@@ -88,10 +117,11 @@ class _MainScreenState extends ConsumerState<MainScreen> {
 
   List<Widget> get _screens {
     return <Widget>[
-      if (_supportsPhotos) LocalGalleryScreen(
-        onNavigateToSettings: () =>
-            setState(() => _currentIndex = _settingsTabIndex),
-      ),
+      if (_supportsPhotos)
+        LocalGalleryScreen(
+          onNavigateToSettings: () =>
+              setState(() => _currentIndex = _settingsTabIndex),
+        ),
       CloudGalleryScreen(
         onNavigateToSettings: () =>
             setState(() => _currentIndex = _settingsTabIndex),
