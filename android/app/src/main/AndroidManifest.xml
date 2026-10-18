@@ -2,6 +2,8 @@
     <!-- Photo access -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+    <!-- Saving downloaded photos back to the gallery on Android 10 and below -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>
     <!-- Network for S3 uploads -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Biometric gate for auto-unlock -->

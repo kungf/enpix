@@ -63,6 +63,8 @@
 	</array>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Enpix 需要访问照片库以浏览和备份你的照片</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Enpix 需要将你从云端下载的照片保存到相册</string>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

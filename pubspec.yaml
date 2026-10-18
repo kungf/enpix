@@ -32,6 +32,9 @@ dependencies:
   # Photo access
   photo_manager: ^3.4.0
 
+  # Save decrypted photos back to the system library
+  gal: ^2.3.3
+
   # Image
   image: ^4.3.0
 
