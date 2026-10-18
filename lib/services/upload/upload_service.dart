@@ -20,6 +20,43 @@ const int kMultipartPartSize = 8 * 1024 * 1024;
 /// is a single PUT (a one-part multipart would only add overhead).
 const int kMultipartThreshold = kMultipartPartSize;
 
+/// Generates a JPEG thumbnail bounded by the configured max dimensions,
+/// preserving the source aspect ratio.
+///
+/// Returns null when [plaintext] is not a decodable image (e.g. a video).
+Uint8List? buildThumbnailJpeg(Uint8List plaintext) {
+  final img.Image? decoded;
+  try {
+    decoded = img.decodeImage(plaintext);
+  } on Object {
+    // The image package throws non-Exception errors (e.g. RangeError) on
+    // malformed input. A photo it cannot decode must not abort a backup.
+    return null;
+  }
+  if (decoded == null) return null;
+
+  // Fit inside the max box without upscaling or distorting.
+  final scale = math.min(
+    1.0,
+    math.min(
+      AppConstants.thumbnailMaxWidth / decoded.width,
+      AppConstants.thumbnailMaxHeight / decoded.height,
+    ),
+  );
+  final width = (decoded.width * scale).round();
+  final height = (decoded.height * scale).round();
+
+  final thumb = img.copyResize(
+    decoded,
+    width: width,
+    height: height,
+    interpolation: img.Interpolation.cubic,
+  );
+  return Uint8List.fromList(
+    img.encodeJpg(thumb, quality: AppConstants.thumbnailQuality),
+  );
+}
+
 class UploadService {
   final Logger _log = Logger('UploadService');
   final CryptoService _crypto;
@@ -77,23 +114,14 @@ class UploadService {
 
     if (isCancelled()) throw const UploadCancelledException();
 
-    // 5. Generate thumbnail
+    // 5. Generate thumbnail (bounded box, aspect ratio preserved)
     Uint8List? thumbJpeg;
     try {
-      final decoded = img.decodeImage(plaintext);
-      if (decoded != null) {
-        final thumb = img.copyResize(
-          decoded,
-          width: AppConstants.thumbnailMaxWidth,
-          height: AppConstants.thumbnailMaxHeight,
-          interpolation: img.Interpolation.cubic,
-        );
-        thumbJpeg = Uint8List.fromList(
-          img.encodeJpg(thumb, quality: AppConstants.thumbnailQuality),
-        );
+      thumbJpeg = buildThumbnailJpeg(plaintext);
+      if (thumbJpeg != null) {
         _log.fine('Thumbnail generated: ${thumbJpeg.length} bytes');
       }
-    } catch (e) {
+    } on Exception catch (e) {
       _log.warning('Thumbnail generation failed (non-fatal): $e');
     }
 
