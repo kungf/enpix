@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 import 'package:enpix/services/storage/s3_service.dart';
 
 /// Segment names in the S3 key layout.
@@ -12,7 +10,6 @@ const String kEncryptedSuffix = '.enc';
 ///
 /// Key layout written by [S3Service.generateThumbKey]:
 /// `enpix/{prefix?}/{deviceId}/thumbs/YYYYMMDD/{fileId}_thumb.enc`
-@immutable
 class CloudMediaKey {
   const CloudMediaKey({
     required this.fileId,
@@ -66,7 +63,6 @@ class CloudMediaKey {
 
 /// A backed-up photo as seen from the cloud: its encrypted thumbnail plus
 /// everything needed to derive the original object's key.
-@immutable
 class CloudMedia {
   const CloudMedia({
     required this.fileId,
@@ -137,7 +133,6 @@ String formatDateKey(DateTime date) => '${date.year}-'
     '${date.day.toString().padLeft(2, '0')}';
 
 /// One day's worth of cloud items.
-@immutable
 class CloudMediaDay {
   const CloudMediaDay({
     required this.dateKey,

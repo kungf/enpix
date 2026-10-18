@@ -1,12 +1,11 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 
 import 'package:enpix/core/errors/storage_exception.dart';
 import 'package:enpix/core/utils/retry.dart';
-import 'package:enpix/services/cache/thumbnail_cache.dart';
 import 'package:enpix/services/cloud/cloud_media.dart';
-import 'package:enpix/services/crypto/credential_service.dart';
 import 'package:enpix/services/crypto/crypto_service.dart';
 import 'package:enpix/services/storage/s3_service.dart';
 
@@ -31,7 +30,6 @@ class CloudMediaException implements Exception {
 }
 
 /// Decrypted original plus the integrity result.
-@immutable
 class CloudMediaContent {
   const CloudMediaContent({
     required this.bytes,
@@ -49,7 +47,6 @@ class CloudMediaContent {
   final bool hashVerified;
 }
 
-@immutable
 class CloudDeleteFailure {
   const CloudDeleteFailure({required this.media, required this.error});
 
@@ -57,7 +54,6 @@ class CloudDeleteFailure {
   final Object error;
 }
 
-@immutable
 class CloudDeleteReport {
   const CloudDeleteReport({required this.deleted, required this.failures});
 
@@ -84,13 +80,13 @@ class CloudMediaRepository implements CloudMediaGateway {
   CloudMediaRepository({
     required S3Service s3,
     required CryptoService crypto,
-    required CredentialService credentials,
-    required ThumbnailCache cache,
+    required Uint8List? Function() sessionMasterKey,
+    Future<void> Function(String assetId, Uint8List bytes)? cache,
     int maxAttempts = kCloudMaxAttempts,
     Future<void> Function(Duration delay) sleep = _defaultSleep,
   })  : _s3 = s3,
         _crypto = crypto,
-        _credentials = credentials,
+        _sessionMasterKey = sessionMasterKey,
         _cache = cache,
         _maxAttempts = maxAttempts,
         _sleep = sleep;
@@ -99,8 +95,8 @@ class CloudMediaRepository implements CloudMediaGateway {
 
   final S3Service _s3;
   final CryptoService _crypto;
-  final CredentialService _credentials;
-  final ThumbnailCache _cache;
+  final Uint8List? Function() _sessionMasterKey;
+  final Future<void> Function(String assetId, Uint8List bytes)? _cache;
   final int _maxAttempts;
   final Future<void> Function(Duration delay) _sleep;
 
@@ -138,7 +134,7 @@ class CloudMediaRepository implements CloudMediaGateway {
 
     // Cache write failure must not hide a successful decrypt.
     try {
-      await _cache.save(media.fileId, plaintext);
+      await _cache?.call(media.fileId, plaintext);
     } on Exception catch (e) {
       _log.warning('Thumbnail cache save failed: ${media.fileId} — $e');
     }
@@ -225,7 +221,7 @@ class CloudMediaRepository implements CloudMediaGateway {
   }
 
   Future<Uint8List> _decrypt(Uint8List encrypted, String wrappedDekB64) async {
-    final masterKey = _credentials.sessionMasterKey;
+    final masterKey = _sessionMasterKey();
     if (masterKey == null) {
       throw const CloudMediaException('会话已锁定，请先解锁');
     }

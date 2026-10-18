@@ -8,11 +8,12 @@ import 'package:enpix/services/storage/s3_config_service.dart';
 
 /// Cloud object access (list, decrypt, verify, delete).
 final cloudMediaRepositoryProvider = Provider<CloudMediaRepository>((ref) {
+  final creds = ref.watch(credentialServiceProvider);
   return CloudMediaRepository(
     s3: ref.watch(s3ServiceProvider),
     crypto: ref.watch(cryptoServiceProvider),
-    credentials: ref.watch(credentialServiceProvider),
-    cache: ref.watch(thumbnailCacheProvider),
+    sessionMasterKey: () => creds.sessionMasterKey,
+    cache: (id, bytes) => ref.read(thumbnailCacheProvider).save(id, bytes),
   );
 });
 
