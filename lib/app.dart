@@ -7,6 +7,7 @@ import 'presentation/screens/settings/settings_screen.dart';
 import 'presentation/screens/local_gallery/local_gallery_screen.dart';
 import 'presentation/screens/cloud_gallery/cloud_gallery_screen.dart';
 import 'presentation/screens/overview/overview_screen.dart';
+import 'services/background/backup_keepalive.dart';
 import 'services/providers.dart';
 import 'services/session/session_lock.dart';
 
@@ -51,6 +52,7 @@ class MainScreen extends ConsumerStatefulWidget {
 class _MainScreenState extends ConsumerState<MainScreen> {
   final _log = Logger('MainScreen');
   late final SessionLock _sessionLock;
+  late final BackupKeepalive _backupKeepalive;
   int _currentIndex = 0;
 
   @override
@@ -65,12 +67,27 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       isBusy: () => ref.read(backupManagerProvider).isRunning,
     );
     _sessionLock.attach(WidgetsBinding.instance);
+    // Keep the process alive while a backup runs so it survives
+    // backgrounding (Android foreground service; iOS background task).
+    _backupKeepalive = BackupKeepalive(
+      platform: MethodChannelKeepalive(),
+      onStopBackup: () => ref.read(backupManagerProvider.notifier).stop(),
+      graceTimeout: !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS
+          ? kIOSBackgroundGrace
+          : null,
+    );
+    _backupKeepalive.attach(WidgetsBinding.instance);
+    ref.listenManual(
+      backupManagerProvider,
+      (_, next) => _backupKeepalive.onTaskChanged(next),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) => _init());
   }
 
   @override
   void dispose() {
     _sessionLock.detach(WidgetsBinding.instance);
+    _backupKeepalive.detach(WidgetsBinding.instance);
     super.dispose();
   }
 

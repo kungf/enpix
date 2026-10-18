@@ -29,10 +29,6 @@ dependencies:
   # Networking
   connectivity_plus: ^6.1.0
 
-  # Background processing
-  workmanager: ^0.5.2
-  flutter_background_service: ^5.0.0
-
   # Photo access
   photo_manager: ^3.4.0
 

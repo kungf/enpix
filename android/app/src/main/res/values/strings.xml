@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="backup_notification_title">Enpix 正在备份照片</string>
+    <string name="backup_notification_text">保持此通知可让备份在后台继续</string>
+    <string name="backup_notification_channel">照片备份</string>
+</resources>
